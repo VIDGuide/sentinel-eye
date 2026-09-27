@@ -9,10 +9,22 @@ import { esc, icon, toast } from './ui.js';
 const state = { settings: null, view: null, kind: null, hash: '#/live' };
 const app = document.getElementById('app');
 
+// Matches --bg in app.css exactly (dark/light) — kept as its own small map rather than reading the CSS
+// variable at call time, since the value is needed before layout/paint on the very first call.
+const THEME_BG = { dark: '#0b0e13', light: '#f3f5f8' };
 function applyTheme(t) {
   if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
   else document.documentElement.removeAttribute('data-theme');
+  // Installed-app chrome (iOS status bar tint, Android/desktop PWA title bar) reads this meta tag, not the
+  // page's own CSS — manifest.json's theme_color only covers the OS's default-theme guess before this JS
+  // runs, and can't follow "auto" or an explicit override at all, so this keeps it in sync with whichever
+  // theme is actually showing, the same way any other themed chrome in this app already does.
+  const effective = (t === 'dark' || t === 'light') ? t : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_BG[effective]);
 }
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (!(state.settings?.display.theme === 'dark' || state.settings?.display.theme === 'light')) applyTheme(null);
+});
 
 const ctx = {
   settings: () => state.settings,
@@ -94,6 +106,11 @@ async function route() {
 
 async function boot() {
   shell();
+  // Registered from the app shell (not inline in index.html) so it only ever runs after the real app has
+  // loaded — irrelevant to whether the settings fetch below succeeds, so it doesn't block or gate on it.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
   try {
     state.settings = await api.settings();
   } catch (e) {
