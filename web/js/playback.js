@@ -26,7 +26,14 @@ export class PlaybackView {
     this.root = root;
     this.ctx = ctx;
     this.playing = false;
-    this.currentEpoch = startEpoch ? +startEpoch : Date.now() / 1000 - 30;
+    // The DVR refuses PLAY for a time too close to "now" (still-open recording segment — see _play_loop's
+    // own comment: "how close is inconsistent, not a fixed margin we can just default past"). -30s landed
+    // inside that margin often enough that opening Playback with no deep link commonly meant sitting on
+    // "Connecting…" through several of the backend's 20s retry-backoff steps before anything played —
+    // found directly, not assumed. 3 minutes back is comfortably clear of that margin on every DVR
+    // reboot/segment-rollover pattern seen so far, so the very first connect succeeds immediately instead
+    // of gambling on the retry loop; "Jump to now" is one click away for whoever actually wants live edge.
+    this.currentEpoch = startEpoch ? +startEpoch : Date.now() / 1000 - 180;
     this.speed = '1';
     this.tzOffsetMin = 330; // Asia/Kolkata default until /api/timeline/tz answers
     this.datePicker = null;        // DateTimePicker bound to the primary camera's coverage

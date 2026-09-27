@@ -290,7 +290,14 @@ export class Timeline {
     }
     // time grid + labels
     const spanSec = w / this.pxPerSec;
-    const step = niceStep(spanSec / 8);
+    // Ticks 8 across the visible span sounds width-independent but isn't: on a narrow canvas that's still
+    // ~w/8 px apart, which a label like "27 Sep, 05:00" (needs ~90-100px) doesn't fit into on a phone —
+    // found directly, labels overlapped/ran together below ~700px wide. Targeting a fixed *pixel* spacing
+    // and deriving the tick count from that (never fewer than 3, so a very narrow canvas still shows some
+    // structure) scales properly with the canvas's own actual width instead of just the current zoom span.
+    const MIN_LABEL_PX = 92;
+    const targetTicks = Math.max(3, Math.floor(w / MIN_LABEL_PX));
+    const step = niceStep(spanSec / targetTicks);
     ctx.strokeStyle = line; ctx.fillStyle = text; ctx.font = '11px system-ui'; ctx.textBaseline = 'top';
     const first = Math.floor(t0 / step) * step;
     for (let t = first; t < t0 + spanSec + step; t += step) {

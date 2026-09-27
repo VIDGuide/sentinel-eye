@@ -625,23 +625,26 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
    a toggle button that's itself only visible/clickable at its view's own breakpoint, so this needs no width
    gating of its own. */
 .pb-panel-scrim { position: absolute; inset: 0; z-index: 24; background: var(--scrim); }
-/* Below 760px on a mouse there's no longer room to show the camera list and the calendar in-flow alongside
-   the video without crushing it — found directly, not assumed: stacking all three in a column left the
-   video a thin sliver with the transport controls overlapping it, and the calendar's own natural height (a
-   full month grid) pushed the timeline off-screen entirely, invisible and unreachable, on a phone-height
-   viewport. On a *touch* device this stops being purely a width problem: an iPad in landscape has plenty of
-   width (1024-1366px) for two 260px rails beside the video, but they're still permanently-docked chrome
-   competing with the picture on a device meant to be held, not a fixed desk monitor — every iPad size, both
-   orientations, gets the same drawer treatment a phone needs for width alone. (pointer: coarse) is what
-   actually distinguishes "touch device, however wide" from "someone shrunk their laptop's browser window,"
-   which is mouse-driven and keeps the narrower-but-still-inline 980px rule below instead. Below the
-   qualifying width, both side panels become the exact same off-canvas drawers .pb:fullscreen already uses
-   above — opened by the topline's two icon buttons (no hover on touch, so no edge-hover reveal here) and
-   dismissed via the scrim or the toggle again — so touch windowed mode gets the video, transport and
-   timeline at full width by default, with cameras/date-jump one tap away instead of permanently competing
-   for space. 1400px comfortably covers every current iPad in landscape (widest: 12.9" Pro at 1366px) while
-   still excluding real desktop displays, which are essentially never touch-primary. */
-@media (max-width: 1400px) and (pointer: coarse) {
+/* Below 760px there's no longer room to show the camera list and the calendar in-flow alongside the video
+   without crushing it, regardless of pointer type — found directly, not assumed: stacking all three in a
+   column left the video a thin sliver with the transport controls overlapping it, and the calendar's own
+   natural height (a full month grid) pushed the timeline off-screen entirely, invisible and unreachable, on
+   a phone-height viewport. A *touch* device needs the same treatment at far more width than that: an iPad
+   in landscape has plenty of width (1024-1366px) for two 260px rails beside the video, but they're still
+   permanently-docked chrome competing with the picture on a device meant to be held, not a fixed desk
+   monitor — every iPad size, both orientations, gets the same drawer treatment a phone needs for width
+   alone. Hence the two conditions below, either sufficient on its own: (pointer: coarse) at a generous
+   width is what actually distinguishes "touch device, however wide" from "someone shrunk their laptop's
+   browser window" (which stays on the plain width check — found directly that dropping this half left a
+   narrow *mouse* window back on the crushing bug this whole rule exists to fix, since the 980px rule below
+   only ever shrinks the rails' width, it doesn't stack/hide them). Below the qualifying width, both side
+   panels become the exact same off-canvas drawers .pb:fullscreen already uses above — opened by the
+   topline's two icon buttons (no hover on touch, so no edge-hover reveal here) and dismissed via the scrim
+   or the toggle again — so windowed mode gets the video, transport and timeline at full width by default,
+   with cameras/date-jump one tap away instead of permanently competing for space. 1400px comfortably covers
+   every current iPad in landscape (widest: 12.9" Pro at 1366px) while still excluding real desktop
+   displays, which are essentially never touch-primary. */
+@media (max-width: 1400px) and (pointer: coarse), (max-width: 760px) {
   /* Scoped to .pb (Playback) specifically — Events reuses the same .pb-side/.cam-list classes and gets the
      identical drawer treatment (see the events-view block below) via its own toolbar buttons rather than
      Playback's topline ones, so it needs its own copy of these rules rather than sharing this one block. */
@@ -715,7 +718,10 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .evp-bottom { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); overflow-x: auto; }
 .evp-bottom .btn, .evp-bottom .hint { flex: none; }
 .events-toolbar { display: none; gap: 8px; margin-bottom: 14px; }
-@media (max-width: 1400px) and (pointer: coarse) {
+/* Same two-condition breakpoint as Playback's drawer rule, and the same reason: a narrow *mouse* window
+   needs this purely for width (found directly — a plain width-only condition had regressed here too), a
+   touch device (any iPad, either orientation) needs it regardless of width. */
+@media (max-width: 1400px) and (pointer: coarse), (max-width: 820px) {
   /* Same off-canvas drawer pattern as Playback, and the same (max-width, pointer: coarse) condition and
      reasoning — every iPad, both orientations, not just a narrow window — rather than stacking the camera
      picker, results and filters in one column: an earlier version of this rule did that, but DOM order
