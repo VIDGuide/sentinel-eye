@@ -23,6 +23,8 @@ export class LiveView {
     // Read once at construction (Settings tears down and rebuilds LiveView on any route change — see
     // main.js route() — so a fresh read here already picks up a toggle flipped from within Settings).
     this.tvMode = !!ctx.tvMode?.();
+    this.tvQualityPref = ctx.tvQuality?.() || 'sub';
+    this.tvIndex = 0;   // currently-selected tile in TV mode's own arrow-key grid navigation
     this.onKey = (e) => this.key(e);
     document.addEventListener('keydown', this.onKey);
     this.onFs = () => this.syncFullscreen();
@@ -74,6 +76,7 @@ export class LiveView {
     this.live = this.root.querySelector('.liveview');
     this.bar = this.root.querySelector('.subbar');
     this.wall = this.root.querySelector('.wall');
+    this.wall.addEventListener('focusin', (e) => this._tvFocusIn(e));
     this.page = Math.min(this.page, this.pages() - 1);
     this.renderBar();
     this.renderWall();
@@ -82,7 +85,7 @@ export class LiveView {
 
   renderBar() {
     if (!this.bar) return;
-    const d = this.d, pages = this.pages(), q = d.quality;
+    const d = this.d, pages = this.pages(), q = this.effQuality();
     const seg = (v, label, tip) => `<button data-q="${v}" aria-pressed="${q === v}" title="${tip}">${label}</button>`;
     this.bar.innerHTML = `
       <div class="menu-wrap">
@@ -107,7 +110,13 @@ export class LiveView {
       <button class="btn icon" data-a="wallfs" title="Full screen" aria-label="Full screen">${icon('fullscreen')}</button>`;
     this.bar.querySelector('[data-a=layout]').addEventListener('click', (e) => { e.stopPropagation(); this.menuOpen = !this.menuOpen; this.renderBar(); });
     this.bar.querySelectorAll('[data-l]').forEach((b) => b.addEventListener('click', () => this.setDisplay({ layout: b.dataset.l }, true)));
-    this.bar.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => this.setDisplay({ quality: b.dataset.q }, true)));
+    this.bar.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => {
+      // TV mode: this control still works, it just writes to the local TV-only preference (see
+      // effQuality()) instead of the setting every other device shares — flipping a TV to HD shouldn't
+      // change what a phone on the same server defaults to next time it opens.
+      if (this.tvMode) { this.tvQualityPref = b.dataset.q; this.ctx.setTvQuality?.(b.dataset.q); this.renderBar(); this.renderWall(); }
+      else this.setDisplay({ quality: b.dataset.q }, true);
+    }));
     this.bar.querySelector('[data-a=fit]').addEventListener('click', () => this.toggleFit());
     this.bar.querySelector('[data-a=edit]').addEventListener('click', () => this.toggleEdit());
     this.bar.querySelector('[data-a=rotate]')?.addEventListener('click', () => { this.rotating = !this.rotating; this.rotSince = Date.now(); this.renderBar(); });
@@ -117,13 +126,14 @@ export class LiveView {
     this.bar.querySelector('[data-a=wallfs]').addEventListener('click', () => this.toggleFullscreen(this.live));
   }
 
+  // TV mode's own Auto/SD/HD choice in place of the synced Settings one (see main.js's tvQuality) — same
+  // "auto" rule either way (HD only for the one big/large tile, SD for the rest), just pointed at whichever
+  // preference is active. Defaults to SD (a full wall of simultaneous HD decodes is what was actually
+  // lagging on the Tizen browser this was built for) but a TV browser with room for it can switch to HD
+  // from the same quality control every other client uses.
+  effQuality() { return this.tvMode ? this.tvQualityPref : this.d.quality; }
   qualityFor(cell) {
-    // TV mode: always SD in the grid, regardless of the (shared, synced-everywhere) quality setting — a
-    // full wall of simultaneous HD decodes is exactly what was lagging on a Tizen browser (per the report
-    // this was built for); the large/focus view below is unaffected since it's a single stream, so HD
-    // there costs far less and is exactly where it matters most on a big screen.
-    if (this.tvMode) return 'sub';
-    const q = this.d.quality;
+    const q = this.effQuality();
     return q === 'main' ? 'main' : q === 'sub' ? 'sub' : cell.big ? 'main' : 'sub';
   }
 
@@ -166,6 +176,10 @@ export class LiveView {
       w.append(el);
     });
     this.liveCount = 0;
+    if (this.tvMode) {
+      this.tvIndex = Math.max(0, Math.min(this.tiles.length - 1, this.tvIndex));
+      this.tiles[this.tvIndex]?.el.querySelector('.hit')?.focus({ preventScroll: true });
+    }
   }
 
   countLive() {
@@ -261,7 +275,7 @@ export class LiveView {
     this.toggleEdit(false);
     const cams = this.cams();
     const idx = cams.findIndex((c) => c.id === cam.id);
-    const kind = this.d.quality === 'sub' ? 'sub' : 'main';
+    const kind = this.effQuality() === 'sub' ? 'sub' : 'main';
 
     // Seamless upgrade: reuse the tile already running in the grid (same player, same connection) instead
     // of disposing it and opening a fresh one — no reconnect, no black frame, and the grid's other tiles
@@ -491,6 +505,14 @@ export class LiveView {
     this.replay = null;
   }
 
+  /** Called by main.js when the tab/installed app regains visibility (see Tile.resume's own comment for
+   * why this is needed at all — a backgrounded iOS home-screen app's network connections die well before
+   * anything else does). Every live tile gets kicked, including whichever one is open in the large view. */
+  resume() {
+    this.tiles.forEach((t) => t.resume());
+    this.focus?.tile.resume();
+  }
+
   // ---------------------------------------------------------------- fullscreen & keys
   toggleFullscreen(el) {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -516,15 +538,42 @@ export class LiveView {
       else if (k === 'b' || k === 'B') this.bookmarkNow(this.focus.tile.cam);
       return;
     }
+    // TV mode: arrow keys move a selection cursor between tiles instead of paging — a D-pad's arrow keys
+    // don't move focus between elements on their own (that's a Tab-key thing on every browser tested,
+    // Tizen's Chromium-based one included — there's no built-in "spatial navigation" to lean on), so this
+    // drives it by hand rather than assuming the browser does it. Enter/Space then opens the selected tile
+    // via the real keydown handler already on its .hit element (tile.js, under the same flag).
+    if (this.tvMode && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown')) {
+      e.preventDefault();
+      const cols = LAYOUTS[this.d.layout].cols || 1;
+      this._tvMove(k === 'ArrowLeft' ? -1 : k === 'ArrowRight' ? 1 : k === 'ArrowUp' ? -cols : cols);
+      return;
+    }
     if (k === 'Escape') { if (this.edit) this.toggleEdit(false); }
-    // Off in TV mode: arrow keys there are spatial-navigation focus moves between tiles (see tile.js's
-    // tabindex, added under the same flag), not a paging shortcut — the two would otherwise both fire on
-    // the same keypress. The always-focusable pager buttons (renderBar, when pages > 1) cover paging.
-    else if (k === 'ArrowLeft' && !this.tvMode) this.goPage(this.page - 1);
-    else if (k === 'ArrowRight' && !this.tvMode) this.goPage(this.page + 1);
+    else if (k === 'ArrowLeft') this.goPage(this.page - 1);
+    else if (k === 'ArrowRight') this.goPage(this.page + 1);
     else if (k === 'e' || k === 'E') this.toggleEdit();
     else if (k === 'f' || k === 'F') this.toggleFullscreen(this.live);
     else if (/^[1-9]$/.test(k)) { const t = this.tiles[+k - 1]; if (t) this.ctx.go(`#/live/${t.cam.id}`); }
+  }
+
+  // ---------------------------------------------------------------- TV mode grid navigation
+  /** Moves the TV-mode selection cursor by `delta` tiles (±1 for left/right, ±cols for up/down) and gives
+   * that tile's hit-target real keyboard focus — works identically on a real TV remote and a laptop
+   * keyboard, since nothing here depends on the browser's own focus-traversal order. */
+  _tvMove(delta) {
+    if (!this.tiles.length) return;
+    this.tvIndex = Math.max(0, Math.min(this.tiles.length - 1, this.tvIndex + delta));
+    this.tiles[this.tvIndex]?.el.querySelector('.hit')?.focus({ preventScroll: true });
+  }
+
+  /** Keeps tvIndex in sync when a tile is focused by some other means (mouse click, Tab) — so arrow-key
+   * navigation picks up from wherever focus actually is, not a stale cursor position. */
+  _tvFocusIn(e) {
+    const hit = e.target.closest?.('.hit');
+    if (!hit) return;
+    const i = this.tiles.findIndex((t) => t.el.contains(hit));
+    if (i >= 0) this.tvIndex = i;
   }
 
   destroy() {

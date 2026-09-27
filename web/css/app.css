@@ -832,11 +832,10 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 }
 
 /* ---------- TV mode (Settings > Display) ---------- */
-/* Couch-distance legibility and a clear, high-contrast keyboard/remote focus ring — there's no mouse
-   pointer on a TV, and no touch either, just a D-pad's arrow keys + Enter/Back, so :hover-revealed chrome
-   (tile-actions, small icon-only buttons) is either unreachable or not worth the clutter; the per-tile
-   controls collapse to "select the tile, press Enter, use the large view's own big buttons" instead.
-   Heavy blur/shadow effects are also toned down here — a real cost on a TV's much weaker GPU. */
+/* Couch-distance legibility and a clear, high-contrast keyboard/remote focus ring for TV mode's own
+   arrow-key grid navigation (live.js's _tvMove) — works alongside the normal mouse/touch/Tab paths
+   everywhere else in the app, not instead of them, since a laptop driving a TV over HDMI (or just running
+   TV mode at a desk for the bigger text) still has a real pointer. */
 html.tv-mode { font-size: 19px; }
 html.tv-mode body { font-size: 16px; }   /* a modest bump everywhere else; the elements below get a larger, deliberate size on top of this */
 html.tv-mode .topbar { height: calc(72px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
@@ -845,10 +844,12 @@ html.tv-mode .brand { font-size: 1.15rem; gap: 10px; }
 html.tv-mode .clock { font-size: 1.05rem; }
 html.tv-mode .subbar { min-height: 60px; gap: 10px; padding: 10px 14px; }
 html.tv-mode .subbar .btn, html.tv-mode .subbar .seg button, html.tv-mode .subbar .pill { font-size: 1.05rem; padding: 10px 16px; }
-html.tv-mode .tile-actions { display: none; }   /* declutter — open the tile (Enter) and use the large view's controls instead */
+/* Per-tile quick actions stay reachable exactly the way they already are everywhere else in the app — a
+   mouse hovering the tile (laptop/desktop, see .tile:hover) or the tile's hit-target having keyboard focus
+   (.tile:focus-within, which now includes TV-mode's own arrow-key selection below) — nothing TV-specific
+   needed here, it was already input-agnostic. */
 html.tv-mode .tile .name { font-size: 1.15rem; }
 html.tv-mode .tile .hit:focus-visible { outline: 4px solid var(--accent); outline-offset: -4px; z-index: 6; }
-html.tv-mode .tile .hit { cursor: pointer; }
 html.tv-mode .focus-bar { min-height: 64px; padding: 10px 14px; }
 html.tv-mode .focus-bar h2 { font-size: 1.3rem; }
 html.tv-mode .focus-bar .btn { font-size: 1.05rem; padding: 10px 16px; }

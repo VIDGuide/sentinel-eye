@@ -78,10 +78,10 @@ export class Tile {
     if (opts.chrome) {
       const hit = this.el.querySelector('.hit');
       hit.addEventListener('click', () => opts.onFocus?.(this));
-      // TV mode: there's no pointer, so the picture itself has to be a real keyboard target — most smart-TV
-      // browsers move focus between focusable elements on the remote's arrow keys natively (same mechanism
-      // as Tab), so tabindex here is what makes a camera reachable at all; Enter/Space then "clicks" it,
-      // same as a native <button> would.
+      // TV mode: the picture itself has to be a real (tabbable) keyboard target — arrow keys don't move
+      // focus between elements in any tested browser on their own (that's LiveView._tvMove's job, driven
+      // by hand rather than assumed), but this tabindex is still what makes a tile reachable via Tab, gives
+      // it a real :focus-visible ring, and lets Enter/Space "click" it like a native <button> would.
       if (opts.tv) {
         hit.tabIndex = 0;
         hit.setAttribute('role', 'button');
@@ -365,6 +365,20 @@ export class Tile {
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }, 'image/jpeg', this.opts.display?.snapshot_quality ?? 0.92); // Settings > Display > Interaction — was hardcoded
     return true;
+  }
+
+  /** Force an immediate reconnect of the live stream, bypassing the passive stall-detection cooldown
+   * (_tick's STALL_RECONNECT) — for when the app regains visibility (main.js's visibilitychange listener)
+   * after being backgrounded. iOS suspends network access for a backgrounded installed web app well before
+   * it suspends the JS itself, so the WebRTC/WebSocket connection is commonly already dead by the time you
+   * switch back even though nothing crashed — normally that self-heals via the passive stall timer, but
+   * only after up to 12s of a visibly black tile; this cuts straight to the fix the moment you're looking
+   * at it again instead of waiting it out.
+   */
+  resume() {
+    if (!this.cur) return;
+    this.cur.lastReconnect = performance.now();
+    this.cur.player.reconnect();
   }
 
   dispose() {

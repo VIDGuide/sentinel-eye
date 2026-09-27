@@ -9,7 +9,7 @@
 // always be live), the playback/live WebSocket and WebRTC/MSE streams (the browser never routes these
 // through a service worker's fetch event in the first place — no special-casing needed), and anything
 // cross-origin.
-const CACHE_NAME = 'sentinel-eye-shell-v1';
+const CACHE_NAME = 'sentinel-eye-shell-v2';
 const STATIC_RE = /\.(?:js|css|png|svg|json|ico|webmanifest)$/;
 
 self.addEventListener('install', () => {
@@ -32,24 +32,25 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
   const isShell = url.pathname === '/' || url.pathname === '/index.html' || STATIC_RE.test(url.pathname);
   if (!isShell) return;
-  event.respondWith(networkFirst(req));
+  event.respondWith(staleWhileRevalidate(event, req));
 });
 
-// Network first, not cache first: always prefers the freshest code when the server's actually reachable
-// (this app changes as you develop it — a stale cached shell silently winning over a real update would be
-// its own kind of bug), and only falls back to whatever was last cached if the network request fails
-// outright (server asleep/unreachable), so the app shell can still open rather than showing a bare error.
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    if (response && response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
-    }
+// Stale-while-revalidate, not network-first: answer from cache immediately (when there is one) so an
+// installed app resumes instantly — an iOS home-screen app that got fully evicted from memory while
+// backgrounded has to reload this shell from scratch to come back at all, and waiting on a real network
+// round-trip for that (network-first's old behaviour) is exactly the kind of pause that reads as "the app
+// went black". The network request still always goes out and updates the cache for next time, so this
+// keeps network-first's actual goal (never stuck on a stale shell once a real update ships) without paying
+// for it on every single resume — just once, in the background, after the page already painted.
+async function staleWhileRevalidate(event, request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  const network = fetch(request).then((response) => {
+    if (response && response.ok) cache.put(request, response.clone());
     return response;
-  } catch (err) {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    throw err;
-  }
+  }).catch(() => null);
+  if (cached) { event.waitUntil(network); return cached; }
+  const fresh = await network;
+  if (fresh) return fresh;
+  throw new Error('offline and nothing cached yet');
 }

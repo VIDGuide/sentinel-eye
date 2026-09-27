@@ -39,11 +39,21 @@ function setTvMode(on) {
 }
 setTvMode(getTvMode());   // apply before first paint of the shell below
 
+// TV mode's own quality choice (grid + large view) — separate from the synced Settings > Display > quality
+// picker for the same reason TV mode itself is local: SD-by-default is right for the TV's own decoder, not
+// something a laptop watching the same server should inherit the instant someone flips TV mode on down the
+// hall. Still the same Auto/SD/HD choice, just remembered per-browser, and it defaults to SD.
+const TV_QUALITY_KEY = 'sentinel-eye-tv-quality';
+function getTvQuality() { try { const v = localStorage.getItem(TV_QUALITY_KEY); return v === 'main' || v === 'auto' ? v : 'sub'; } catch { return 'sub'; } }
+function setTvQuality(v) { try { localStorage.setItem(TV_QUALITY_KEY, v); } catch { /* private mode */ } }
+
 const ctx = {
   settings: () => state.settings,
   applyTheme,
   tvMode: getTvMode,
   setTvMode,
+  tvQuality: getTvQuality,
+  setTvQuality,
   go: (h) => { location.hash = h; },
   // For a view syncing its OWN url as its state changes (e.g. playback keeping the current position in the
   // hash) rather than navigating: replaces instead of pushing, so it doesn't fill browser history with
@@ -139,5 +149,13 @@ async function boot() {
   if (!location.hash) location.hash = '#/live';
   route();
 }
+
+// A backgrounded installed app (iOS home-screen PWA especially — see Tile.resume's own comment) loses its
+// live connections well before anything else notices, so the picture can go black for a while and quietly
+// self-heal — jarring, and worse than it needs to be, since we already know exactly when you're looking at
+// it again. Whichever view is open gets first refusal on handling that; only LiveView does right now.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) state.view?.resume?.();
+});
 
 boot();
