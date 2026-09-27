@@ -890,12 +890,19 @@ html.tv-mode .nav-arrow { width: 56px; height: 56px; }
    prev/next, when there's more than one page, plus an indicator, plus exit), positioned over the video and
    hidden until the cursor/remote moves (live.js's _bindWallFsAutoHide, same idle-hide cycle
    .focus-bar/.nav-arrow already use in the single-camera focus view). Escape always still works too —
-   that's the browser's own Fullscreen API, not this cluster. */
+   that's the browser's own Fullscreen API, not this cluster.
+   Vertically centered on the right edge, not the top-right corner — every tile's own controls anchor to
+   ONE of its corners (.tile-actions to its top, .zoomtag to its bottom when zoomed), and whichever tile
+   ends up in the wall's own top-right or bottom-right corner sits exactly there too, so either corner could
+   float this cluster directly over that tile's real controls and block them outright (found directly: the
+   top-right tile's own expand toggle, unreachable underneath it). The vertical middle of the right edge has
+   nothing else living there in the grid — same reasoning the single-camera focus view's own nav-arrows
+   already use for exactly this edge. */
 html.tv-mode .liveview:fullscreen .subbar { display: none; }
 .tv-fs-controls { display: none; }
 html.tv-mode .liveview:fullscreen .tv-fs-controls {
   display: flex; align-items: center; gap: 4px; position: absolute; z-index: 8;
-  top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right));
+  top: 50%; transform: translateY(-50%); right: max(14px, env(safe-area-inset-right));
   padding: 6px; border-radius: 14px;
   background: rgba(15, 20, 28, .7); opacity: 0; pointer-events: none; transition: opacity .22s ease;
 }
