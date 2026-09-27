@@ -390,9 +390,16 @@ kbd { padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); bac
    under-scale a source-resolution "before" frame that's smaller than the viewer, same bug fixed there. */
 .enh-img { aspect-ratio: var(--ar, 1.7778); width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); display: block; }
 .enh-img-result { opacity: 1; }   /* set per-frame from the blend slider (JS) — no transition, so dragging tracks the pointer exactly */
-.enh-blend { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.enh-blend { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; flex: none; }
 .enh-blend input[type=range] { width: 130px; }
 .enh-blend-val { font-variant-numeric: tabular-nums; width: 3.2em; }
+/* Same phone-width fix as .enh-bottom's own comment above (the row scrolls, nothing's ever truly
+   unreachable), but the blend control is the widest thing in that row — trimming it here means less
+   scrolling stands between a phone and "Download enhanced", the primary action at the far end. */
+@media (max-width: 480px) {
+  .enh-blend .hint { display: none; }
+  .enh-blend input[type=range] { width: 84px; }
+}
 .enh-livefilter-canvas { aspect-ratio: var(--ar, 1.7778); width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); display: block; pointer-events: none; }
 .enh-stage.flashlight-on { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='10' fill='rgba(255,214,130,0.22)' stroke='%23ffd682' stroke-width='2'/%3E%3Ccircle cx='14' cy='14' r='2.2' fill='%23ffd682'/%3E%3C/svg%3E") 14 14, crosshair; }
 .enh-stage .hitzone { position: absolute; inset: 0; z-index: 3; touch-action: none; }
@@ -835,13 +842,13 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 /* Couch-distance legibility and a clear, high-contrast keyboard/remote focus ring for TV mode's own
    arrow-key grid navigation (live.js's _tvMove) — works alongside the normal mouse/touch/Tab paths
    everywhere else in the app, not instead of them, since a laptop driving a TV over HDMI (or just running
-   TV mode at a desk for the bigger text) still has a real pointer. */
-html.tv-mode { font-size: 19px; }
-html.tv-mode body { font-size: 16px; }   /* a modest bump everywhere else; the elements below get a larger, deliberate size on top of this */
-html.tv-mode .topbar { height: calc(72px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
-html.tv-mode .nav a { font-size: 1.2rem; gap: 10px; padding: 10px 18px; }
-html.tv-mode .brand { font-size: 1.15rem; gap: 10px; }
-html.tv-mode .clock { font-size: 1.05rem; }
+   TV mode at a desk for the bigger text) still has a real pointer.
+   Scoped to the live view itself, not the shared app shell (topbar/nav) — the couch-distance case this
+   solves is watching cameras, and every functional part of TV mode (arrow-key selection, forced SD, the
+   tile focus ring) is Live-view-only. Enlarging the topbar too, tried first, bled into every other screen
+   (Settings, Events, Playback) sharing that same header and left it looking larger than the page's own
+   heading underneath it — a real hierarchy break, not a deliberate TV treatment of those screens. */
+html.tv-mode { font-size: 19px; }   /* basis for the rem sizes below; nothing outside .liveview uses rem, so shared chrome elsewhere is untouched */
 html.tv-mode .subbar { min-height: 60px; gap: 10px; padding: 10px 14px; }
 html.tv-mode .subbar .btn, html.tv-mode .subbar .seg button, html.tv-mode .subbar .pill { font-size: 1.05rem; padding: 10px 16px; }
 /* Per-tile quick actions stay reachable exactly the way they already are everywhere else in the app — a
