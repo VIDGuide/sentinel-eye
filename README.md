@@ -147,6 +147,13 @@ SD streams stay connected at all times (needed for event/coverage indexing); HD 
 actually viewed. HD is H.265 on the wire, transcoded to H.264 on this machine so it plays smoothly in every
 browser — playing the original H.265 directly is an opt-in setting for lower CPU use.
 
+That transcode asks go2rtc for a hardware encoder (`#hardware`), but the flag is a hint rather than a
+guarantee: go2rtc uses a hardware encoder where it can find one and silently falls back to software
+(libx264) where it can't. On the Linux host this was tested on, it chose libx264 even with a working
+`h264_nvenc` present — so "hardware" there means CPU encoding at full resolution. Set
+`SENTINEL_TRANSCODE_HW=0` to drop the flag outright, for a host whose hardware encoder is detected but
+produces a broken stream.
+
 ## Running it
 
 ### Requirements
