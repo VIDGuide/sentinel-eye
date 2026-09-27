@@ -24,8 +24,8 @@ exists to replace them outright: everything the vendor's software does — live 
 motion/event review, clip export, and increasingly AI-assisted analysis — running entirely on hardware you
 control, with the recorder's proprietary encryption decrypted locally instead of trusted to a vendor plugin.
 
-It is a single-operator tool by design: there is no login system, and it is meant to run on `127.0.0.1` or
-a network you already trust, not to be exposed publicly.
+Built for my own needs, not as a multi-user product: there's no login system, and it's meant to run on
+`127.0.0.1` or a network you already trust, not to be exposed publicly.
 
 ## Features
 
@@ -307,8 +307,8 @@ clock calibration.
 
 ## Contributing
 
-This started as a single-operator tool built for one person's own Hikvision NVR on one Mac, so there's a lot
-of surface it's never had a reason to cover. Contributions are welcome, especially in the areas that setup
+This started as a tool built for my own needs — my own Hikvision NVR, on my own Mac — so there's a lot of
+surface it's never had a reason to cover. Contributions are welcome, especially in the areas that setup
 above already admits are untested or missing:
 
 - **Other DVR/NVR/camera brands.** Everything here assumes Hikvision's RTSP path conventions and ISAPI, and
