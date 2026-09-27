@@ -393,7 +393,12 @@ kbd { padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); bac
 
 @media (max-width: 800px) {
   .settings { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .side { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  /* padding-inline: 0, spacing moved to margin on the links themselves — Safari has a long-standing bug
+     where a horizontally-scrolling flex container's own edge padding gets clipped at the scroll boundary
+     (confirmed on-device: "Connection"'s leading C rendered cut off at rest, scrollLeft already 0 — not a
+     scroll-position bug, a padding-rendering one). margin isn't affected by that Safari quirk. */
+  .side { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; padding-inline: 0; }
+  .side a { margin-inline: 4px; } .side a:first-child { margin-inline-start: 10px; } .side a:last-child { margin-inline-end: 10px; }
   .savebar { left: 0; } .form { grid-template-columns: 1fr; } .pane { padding: 16px 14px 90px; }
   .nav a span, .brand span { display: none; } .clock { display: none; }
 }
@@ -479,12 +484,18 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
    pane now, and a bottom-right pill would sit right on top of it. */
 .pb-pane > .zoomtag { position: absolute; right: 8px; top: 8px; z-index: 6; height: 26px; padding: 0 11px; border: 0; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px var(--ov-scrim); }
 .pb-pane > .zoomtag:hover { filter: brightness(1.1); }
-.pb-pane-label { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 5px 8px; font-size: 12px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; background: linear-gradient(#000a, transparent); pointer-events: none; }
+.pb-pane-label { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 5px 8px; font-size: 12px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; background: linear-gradient(#000a, transparent); pointer-events: none; transition: top .22s ease; }
 /* Fullscreen: the topline now floats/auto-hides instead of permanently occupying its own row (see its own
    comment), so a top-row pane's video — and this label — genuinely reaches the true top of the screen,
-   including an iPad's status-bar/notch safe area, which it never did before that change. Found directly:
-   the camera name rendered right under (overlapping) the iPad's own clock/battery status bar. */
-.pb:fullscreen .pb-pane-label { padding-top: max(5px, env(safe-area-inset-top)); }
+   including an iPad's status-bar/notch safe area, which it never did before that change. Found directly
+   (real fullscreen, not simulated): the camera name rendered right under the iPad's own status bar. */
+.pb:fullscreen .pb-pane-label { top: env(safe-area-inset-top); }
+/* Second, separate collision: right when fullscreen opens (or on any activity), the topline is *also*
+   floating and shown at the same time — both it and this label anchor to the same top-left corner, so their
+   text visibly overlapped (found directly). .pb-topline and .pb-stage are siblings under .pb-center, so the
+   general sibling combinator can push every pane's label down by the topline's own height, no JS needed —
+   only while the topline is actually visible; it settles back to the corner once the topline auto-hides. */
+.pb:fullscreen .pb-topline.show ~ .pb-stage .pb-pane-label { top: calc(var(--bar) + env(safe-area-inset-top)); }
 .pb-pane .pb-veil { padding: 10px; z-index: 4; }
 .pb-pane .pb-veil .msg { font-size: 12px; }
 .pb-center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
