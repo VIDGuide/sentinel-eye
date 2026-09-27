@@ -23,10 +23,6 @@ cd "$(dirname "$0")/.."
 PIP=.venv/bin/pip
 PY=.venv/bin/python3
 
-do
-  echo "  skipping skipped-by-macOS-Finder-hidden-flag note: n/a on this OS"
-done
-
 # BSD sed (macOS) requires an explicit empty argument to -i; GNU sed (Linux) rejects that as a filename.
 sedi() {
   if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi
