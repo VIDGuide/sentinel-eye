@@ -243,6 +243,12 @@ export class LiveView {
   }
 
   openFocus(cam) {
+    // Swapping cameras while focused (nav arrows, or ArrowLeft/Right) goes through close-then-reopen — if
+    // that's happening while fullscreen, remember it: the element about to close is what's actually
+    // fullscreened, and the browser exits fullscreen on its own the instant it's removed from the DOM
+    // (standard behaviour, not something this code controls), so without re-requesting it on the new
+    // element below, every camera swap silently dropped out of fullscreen (found directly, not assumed).
+    const wasFullscreen = this.focus && document.fullscreenElement === this.focus.el;
     this.closeFocus(true);
     this.toggleEdit(false);
     const cams = this.cams();
@@ -293,6 +299,9 @@ export class LiveView {
     tile.enableZoom(hit, { dbl: true });   // single click does nothing (never pauses); double click/tap toggles zoom
     this.live.append(f);
     this.focus = { tile, id: cam.id, el: f, idx, fromGrid: !!fromGrid };
+    // Carry fullscreen across the swap (see the wasFullscreen comment above) — the old element's removal
+    // above already dropped the browser out of fullscreen, so this is a fresh request, not a toggle.
+    if (wasFullscreen) f.requestFullscreen?.().catch(() => {});
     f.querySelector('[data-a=close]').addEventListener('click', () => this.ctx.go('#/live'));
     f.querySelector('[data-a=x]').addEventListener('click', () => this.ctx.go('#/live'));
     f.querySelector('[data-a=snap]').addEventListener('click', () => { if (!tile.snapshot()) toast('No picture to save yet.', 'bad'); });
@@ -342,7 +351,9 @@ export class LiveView {
 
   closeFocus(silent) {
     if (!this.focus) return;
-    if (document.fullscreenElement === this.focus.el) document.exitFullscreen?.();
+    // silent: this is openFocus() swapping to a different camera, not a genuine close — the caller decides
+    // whether to carry fullscreen over to the new element (see openFocus's wasFullscreen), not this exit.
+    if (!silent && document.fullscreenElement === this.focus.el) document.exitFullscreen?.();
     const { tile, fromGrid } = this.focus;
     if (fromGrid && this.tiles.includes(tile)) {
       // hand the still-running tile back to its grid cell — no reconnect, no black frame

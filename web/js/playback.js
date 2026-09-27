@@ -212,6 +212,10 @@ export class PlaybackView {
   // ---------------------------------------------------------------- overlay controls: show on activity, hide while playing and idle
   _bindAutoHideControls() {
     this.controlsEl = this.root.querySelector('.pb-controls');
+    // The topline joins the same show/hide cycle so fullscreen has no permanently-on-screen chrome for a
+    // 16:9 stream — it's a no-op in windowed mode (the CSS only floats/hides it under .pb:fullscreen, so
+    // toggling .show there just sits on an element with no opacity/position rule reading it).
+    this.toplineEl = this.root.querySelector('.pb-topline');
     // A popover (e.g. the enhance menu) is anchored to a button inside these controls but, since
     // openPopover() renders it to <body>, moving the mouse onto it fires no mousemove on the stage — so a
     // hide timer armed just *before* the menu opened would otherwise fire out from under it. The armed
@@ -221,9 +225,11 @@ export class PlaybackView {
     const maybeHide = () => {
       if (!this.playing || busy()) { this._hideTimer = setTimeout(maybeHide, 600); return; }
       this.controlsEl.classList.remove('show');
+      this.toplineEl.classList.remove('show');
     };
     const show = () => {
       this.controlsEl.classList.add('show');
+      this.toplineEl.classList.add('show');
       clearTimeout(this._hideTimer);
       // Settings > Display > Interaction — was hardcoded 2600ms.
       const delayMs = (this.ctx.settings().display.controls_autohide_sec ?? 2.6) * 1000;
@@ -233,7 +239,12 @@ export class PlaybackView {
     this.stage.addEventListener('mousemove', show);
     this.stage.addEventListener('mouseenter', show);
     this.stage.addEventListener('touchstart', show, { passive: true });
-    this.stage.addEventListener('mouseleave', () => { if (this.playing) clearTimeout(this._hideTimer) || (this._hideTimer = setTimeout(() => this.controlsEl.classList.remove('show'), 400)); });
+    this.stage.addEventListener('mouseleave', () => { if (this.playing) clearTimeout(this._hideTimer) || (this._hideTimer = setTimeout(() => { this.controlsEl.classList.remove('show'); this.toplineEl.classList.remove('show'); }, 400)); });
+    // .pb-topline is a sibling of .pb-stage (only floats over it via position:absolute once fullscreen),
+    // not a descendant — the stage's own mousemove listener never sees the cursor sitting directly over the
+    // topline's buttons, which would otherwise auto-hide out from under it mid-hover.
+    this.toplineEl.addEventListener('mousemove', show);
+    this.toplineEl.addEventListener('mouseenter', show);
     show();
   }
 
