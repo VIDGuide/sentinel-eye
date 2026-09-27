@@ -89,7 +89,11 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line); }
 .seg button { border: 0; background: transparent; height: 28px; padding: 0 11px; border-radius: 7px; color: var(--muted); font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
-.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+/* white-space: nowrap — a pill has a fixed 24px height and no min-width; without this, a pill squeezed by
+   its flex siblings (found directly: Playback's "X/4 recorder sessions" pill under a crowded touch-device
+   topline) wraps its text to two lines that overflow past the pill's own rounded background instead of the
+   pill just staying narrow, which is what actually happens to everything else in a flex row by default. */
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; color: var(--muted); white-space: nowrap; flex: none; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.live { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .dot.wait { background: var(--warn); animation: pulse 1.2s infinite; }
@@ -170,6 +174,12 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .ov.top { top: 0; background: linear-gradient(#000a, transparent); }
 .ov.bottom { bottom: 0; background: linear-gradient(transparent, #000a); font-size: 11.5px; color: #cdd5df; font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .15s; }
 .tile:hover .ov.bottom, .focus:hover .ov.bottom { opacity: 1; }
+/* Hover-to-reveal has no touch equivalent — a device that can't hover just never showed this at all, not a
+   graceful degradation. (hover: none) is what actually distinguishes "no real pointing device that can
+   hover" from "a mouse user whose cursor happens to be elsewhere," which no amount of touch event handling
+   on the element itself can substitute for (there's nothing to "start touching" until the tap that would
+   already be the action). Applies to every hover-reveal control below, not just this one. */
+@media (hover: none) { .ov.bottom { opacity: 1; } }
 .ov .name { font-weight: 600; text-shadow: 0 1px 2px #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ov .grow { flex: 1; }
 .tag { padding: 1px 6px; border-radius: 5px; background: var(--ov-btn-bg-hover); font-size: 11px; font-weight: 600; letter-spacing: .03em; }
@@ -180,6 +190,7 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .tag.fx .i { width: 12px; height: 12px; }
 .tile-actions { position: absolute; top: 6px; right: 6px; z-index: 5; display: flex; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .15s; }   /* hidden buttons must not swallow clicks */
 .tile:hover .tile-actions, .tile:focus-within .tile-actions { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .tile-actions { opacity: 1; pointer-events: auto; } }
 .tile-actions button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; border: 0; background: rgba(15, 20, 28, .82); color: #fff; backdrop-filter: blur(6px); }
 .tile-actions button:hover { background: var(--accent); color: var(--accent-ink); }
 .tile-actions button.txt { width: auto; padding: 0 8px; font-size: 11.5px; font-weight: 700; }
@@ -205,9 +216,15 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .focus:hover .nav-arrow { opacity: 1; }
 .focus .nav-arrow:hover { background: var(--accent); color: var(--accent-ink); }
 .focus .nav-arrow.prev { left: 10px; } .focus .nav-arrow.next { right: 10px; }
+@media (hover: none) { .focus .nav-arrow { opacity: 1; } }
 .focus .hitzone { position: absolute; inset: 0; z-index: 1; }
-.focus:fullscreen .focus-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 8; background: linear-gradient(#000c, transparent); border: 0; opacity: 0; transition: opacity .2s; }
-.focus:fullscreen:hover .focus-bar { opacity: 1; }
+/* JS-driven (LiveView._bindFocusAutoHide), same show-on-activity/hide-while-idle cycle Playback's topline
+   and controls use — not a :hover reveal, which (like every other hover-only control above) never showed
+   this at all on a device that can't hover, fullscreen or not. */
+.focus:fullscreen .focus-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 8; background: linear-gradient(#000c, transparent); border: 0; opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+.focus:fullscreen .focus-bar.show { opacity: 1; pointer-events: auto; }
+.focus:fullscreen .nav-arrow { opacity: 0; }
+.focus:fullscreen .nav-arrow.show { opacity: 1; }
 .focus:fullscreen { background: #000; }
 
 /* instant replay overlay */
@@ -607,14 +624,22 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
      identical drawer treatment (see the events-view block below) via its own toolbar buttons rather than
      Playback's topline ones, so it needs its own copy of these rules rather than sharing this one block. */
   .pb .pb-panel-toggle { display: inline-flex; }
-  .pb .pb-side { position: absolute; top: 0; bottom: 0; z-index: 25; width: 260px; max-width: 80vw; background: rgba(8, 11, 16, .97);
-    backdrop-filter: blur(8px); box-shadow: 0 0 28px var(--ov-scrim-strong); transition: transform .22s ease; overflow-y: auto;
+  /* var(--panel), not the fixed dark rgba() .pb:fullscreen's own drawer above uses — that one only ever
+     floats over video (always black, regardless of theme, by design), this one is windowed-mode chrome and
+     needs to actually follow the light/dark theme like every other panel in the app does (found directly:
+     it didn't, a stray dark drawer over an otherwise-light UI in light theme). */
+  .pb .pb-side { position: absolute; top: 0; bottom: 0; z-index: 25; width: 260px; max-width: 80vw; background: color-mix(in srgb, var(--panel) 97%, transparent);
+    backdrop-filter: blur(8px); box-shadow: var(--shadow); transition: transform .22s ease; overflow-y: auto;
     flex-direction: column; flex-wrap: nowrap; max-height: none; border: 0 !important; }
   .pb .pb-side h3 { display: block; } /* the 980px rule above hides it at the cramped inline width — plenty of room for it in a full drawer */
   .pb .pb-side-left { left: 0; transform: translateX(-100%); }
   .pb .pb-side-right { right: 0; transform: translateX(100%); }
   .pb .pb-side.show { transform: translateX(0); }
   .pb .cam-list { flex-direction: column; flex-wrap: nowrap; }
+  /* "recorder sessions" hidden here, "X/4" kept — with 2 extra topline buttons now shown at this breakpoint
+     (touch drawer toggles) plus status/time/fit/fullscreen, there isn't room for the full label; the pill's
+     own title attribute still carries it. Belt-and-braces alongside .pill's own white-space:nowrap fix. */
+  .pb-pool-label { display: none; }
 }
 
 /* events (search) — cameras on the left, results in the middle, filters on the right: the same .pb-side/
@@ -662,7 +687,11 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .evp-stage { position: relative; flex: none; aspect-ratio: 16/9; background: #000; display: grid; place-items: center; overflow: hidden; }
 .evp-stage canvas { max-width: 100%; max-height: 100%; display: block; }
 .evp-veil { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: rgba(5, 7, 10, .82); color: #cbd5e1; text-align: center; padding: 16px; }
-.evp-bottom { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+/* Same fix as .pb-ctrl-center/.enh-bottom: 4 buttons + a status hint don't fit a phone width at any
+   reasonable size — found directly, "Open in playback" (the primary way out of this popup back to full
+   review) was rendering partly off the dialog's own right edge with no way to reach the rest of it. */
+.evp-bottom { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); overflow-x: auto; }
+.evp-bottom .btn, .evp-bottom .hint { flex: none; }
 .events-toolbar { display: none; gap: 8px; margin-bottom: 14px; }
 @media (max-width: 1400px) and (pointer: coarse) {
   /* Same off-canvas drawer pattern as Playback, and the same (max-width, pointer: coarse) condition and
@@ -675,8 +704,10 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
      this width) keep results full-width by default, matching Playback's own reasoning exactly. */
   .events-view { position: relative; overflow: hidden; }
   .events-toolbar { display: flex; }
-  .events-view .pb-side { position: absolute; top: 0; bottom: 0; z-index: 25; width: 260px; max-width: 80vw; background: rgba(8, 11, 16, .97);
-    backdrop-filter: blur(8px); box-shadow: 0 0 28px var(--ov-scrim-strong); transition: transform .22s ease; overflow-y: auto;
+  /* var(--panel), theme-aware — this floats over the (normally-themed, not video-black) results list, so a
+     fixed dark background reads as a stray dark panel in light theme (found directly, not assumed). */
+  .events-view .pb-side { position: absolute; top: 0; bottom: 0; z-index: 25; width: 260px; max-width: 80vw; background: color-mix(in srgb, var(--panel) 97%, transparent);
+    backdrop-filter: blur(8px); box-shadow: var(--shadow); transition: transform .22s ease; overflow-y: auto;
     flex-direction: column; flex-wrap: nowrap; max-height: none; border: 0 !important; }
   .events-view .pb-side h3 { display: block; }
   .events-view .pb-side-left { left: 0; transform: translateX(-100%); }

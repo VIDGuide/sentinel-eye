@@ -324,6 +324,28 @@ export class LiveView {
     f.querySelector('.next')?.addEventListener('click', () => this.stepFocus(1));
     if (tile.kind !== kind) tile.setKind(kind);   // upgrade in place (gapless swap already built into Tile)
     this.paintFocus(tile);
+    this._bindFocusAutoHide(f);
+  }
+
+  // Same show-on-activity/hide-while-idle cycle Playback's topline/controls use, not a :hover reveal — see
+  // .focus:fullscreen's own CSS comment for why. A harmless no-op in windowed mode (nothing there reads the
+  // .show class the CSS only applies under .focus:fullscreen). Listeners live on `f` itself, so they're
+  // discarded along with it on close/swap — no separate teardown needed.
+  _bindFocusAutoHide(f) {
+    const bar = f.querySelector('.focus-bar');
+    const arrows = f.querySelectorAll('.nav-arrow');
+    let hideTimer;
+    const hide = () => { bar.classList.remove('show'); arrows.forEach((a) => a.classList.remove('show')); };
+    const show = () => {
+      bar.classList.add('show');
+      arrows.forEach((a) => a.classList.add('show'));
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hide, 2600);
+    };
+    f.addEventListener('mousemove', show);
+    f.addEventListener('mouseenter', show);
+    f.addEventListener('touchstart', show, { passive: true });
+    show();
   }
 
   paintFocus(tile) {

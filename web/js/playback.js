@@ -665,34 +665,52 @@ export class PlaybackView {
   /** Connects (or reconnects) every pane in `toConnect` (default: all of `panes`) to `epoch`, then pulls
    * any pane — connecting or already playing — that sits on an earlier real moment than the latest of its
    * siblings forward to match, so "the same seek" (or adding a camera mid-review) actually means the same
-   * recorded instant across every camera, not just the same request. One corrective round only (not
-   * recursive): closes a multi-second cross-camera gap down to at most one more channel's own keyframe
-   * interval, which is the realistic floor for independently-seeking DVR sessions. Fewer than 2 panes with
-   * a known position (nothing already playing, and only one camera connecting) is a no-op — nothing to
-   * align against yet. */
+   * recorded instant across every camera, not just the same request.
+   *
+   * The real bug this fixes (found by testing directly against the DVR, not assumed): with an anchored
+   * PlaybackReader, a *single* channel lands exactly on its requested target every time — there is no
+   * meaningful DVR-side keyframe slop to correct for. The actual source of the gap was this function
+   * itself: an already-playing pane's "current position" was read as a synchronous snapshot at the moment
+   * connecting began, via `Promise.resolve(pane._lastAbsTime)` inside the same `Promise.all` that was still
+   * waiting on the newly-connecting pane's session to negotiate (RTSP setup, DVR queueing — real time, not
+   * instant). The already-playing pane keeps playing forward for that whole wait, so by the time the new
+   * pane's first (correctly-anchored) frame arrives, the "target" it was compared against was already
+   * stale — every pane looked aligned to the *value read before the wait*, not to where anyone actually was
+   * once it was over. Fixed by reading every pane's position fresh, after every connect has finished, not
+   * before it started. */
   async _alignPanes(panes, epoch, speed, shouldPlay, toConnect = panes) {
     const iso = new Date(epoch * 1000).toISOString();
     const seq = ++this._alignSeq;
     const connecting = new Set(toConnect);
-    const landings = await Promise.all(panes.map((pane) => {
-      if (!connecting.has(pane)) return Promise.resolve(pane._lastAbsTime ?? null); // already playing — use its current known position
-      return new Promise((resolve) => {
-        pane._alignResolve = (t) => { pane._alignResolve = null; resolve(t); };
-        pane.player.connect(pane.cam.id, iso, speed);
-        setTimeout(() => { if (pane._alignResolve) { const r = pane._alignResolve; pane._alignResolve = null; r(null); } }, 6000);
-      });
-    }));
+    await Promise.all(panes.filter((pane) => connecting.has(pane)).map((pane) => new Promise((resolve) => {
+      pane._alignResolve = (t) => { pane._alignResolve = null; resolve(t); };
+      pane.player.connect(pane.cam.id, iso, speed);
+      setTimeout(() => { if (pane._alignResolve) { const r = pane._alignResolve; pane._alignResolve = null; r(null); } }, 6000);
+    })));
     if (seq !== this._alignSeq) return; // superseded by a newer seek/selection change while we were waiting
+    // Fresh as of right now — an already-playing pane not in toConnect has kept advancing in real time for
+    // however long the connects above took, so this must be read after awaiting them, not before.
+    const landings = panes.map((pane) => pane._lastAbsTime ?? null);
     const known = landings.filter((t) => t != null);
     if (known.length < 2) return;
     const target = Math.max(...known);
     const targetIso = new Date(target * 1000).toISOString();
+    const corrected = [];
     panes.forEach((pane, i) => {
       if (landings[i] != null && landings[i] < target - 0.35) {
         pane._pauseOnNextFrame = !shouldPlay; // _onFrame already consumed this once for the initial landing — re-arm for the correction
-        pane.player.seek(targetIso, speed);
+        corrected.push(new Promise((resolve) => {
+          pane._alignResolve = (t) => { pane._alignResolve = null; resolve(); };
+          pane.player.seek(targetIso, speed);
+          setTimeout(() => { if (pane._alignResolve) { const r = pane._alignResolve; pane._alignResolve = null; r(); } }, 6000);
+        }));
       }
     });
+    // Waited on (not fire-and-forget) so a second, closely-spaced align (e.g. adding a 3rd camera right
+    // after a 2nd) reads *this* round's corrected positions instead of racing them — resolved via the same
+    // _alignResolve _onFrame already reports every landing through, so this is just confirming the
+    // correction actually happened, not issuing a second one.
+    await Promise.all(corrected);
   }
 
   setSpeed(s) {
@@ -768,7 +786,13 @@ export class PlaybackView {
     const tick = async () => {
       try {
         const r = await fetch('/api/playback/pool').then((x) => x.json());
-        this.poolEl.textContent = `${r.busy}/${r.limit} recorder sessions`;
+        // "recorder sessions" in its own span, CSS-hidden below the width it stops fitting — same
+        // shorten-instead-of-wrap treatment as .nav/.brand's own secondary text, and the direct fix for a
+        // real bug: this .pill has no min-width, so at exactly the widths where the topline is tightest
+        // (touch drawer breakpoints, several buttons already competing for room) the text wrapped to two
+        // lines inside the pill's fixed 24px height instead of the pill just being narrower — the tooltip
+        // still carries the full meaning either way.
+        this.poolEl.innerHTML = `${r.busy}/${r.limit}<span class="pb-pool-label"> recorder sessions</span>`;
         this.poolEl.classList.toggle('warn', r.busy >= r.limit);
       } catch { /* transient */ }
     };
