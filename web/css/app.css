@@ -135,6 +135,10 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 /* ---------- live view ---------- */
 .liveview { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .subbar { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--bg); flex-wrap: wrap; }
+/* Unlike Playback's topline/Live's focus-bar, this stays in normal flow even in fullscreen (never floats) —
+   but the .liveview it's the first child of still reaches the true top of a fullscreened screen, so it
+   needs the same safe-area push the others get, for the same reason. */
+.liveview:fullscreen .subbar { padding-top: max(8px, env(safe-area-inset-top)); }
 .pager { display: flex; align-items: center; gap: 8px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pager .dots { display: flex; gap: 5px; }
 .pager .dots button { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 0; background: var(--line-2); }
@@ -221,7 +225,9 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 /* JS-driven (LiveView._bindFocusAutoHide), same show-on-activity/hide-while-idle cycle Playback's topline
    and controls use — not a :hover reveal, which (like every other hover-only control above) never showed
    this at all on a device that can't hover, fullscreen or not. */
-.focus:fullscreen .focus-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 8; background: linear-gradient(#000c, transparent); border: 0; opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+/* Same safe-area fix as .pb-pane-label above, same cause: floating instead of occupying its own row means
+   this can now genuinely reach an iPad's status-bar/notch area. */
+.focus:fullscreen .focus-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 8; background: linear-gradient(#000c, transparent); border: 0; padding-top: max(8px, env(safe-area-inset-top)); opacity: 0; pointer-events: none; transition: opacity .22s ease; }
 .focus:fullscreen .focus-bar.show { opacity: 1; pointer-events: auto; }
 .focus:fullscreen .nav-arrow { opacity: 0; }
 .focus:fullscreen .nav-arrow.show { opacity: 1; }
@@ -474,6 +480,11 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .pb-pane > .zoomtag { position: absolute; right: 8px; top: 8px; z-index: 6; height: 26px; padding: 0 11px; border: 0; border-radius: 99px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px var(--ov-scrim); }
 .pb-pane > .zoomtag:hover { filter: brightness(1.1); }
 .pb-pane-label { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 5px 8px; font-size: 12px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000; background: linear-gradient(#000a, transparent); pointer-events: none; }
+/* Fullscreen: the topline now floats/auto-hides instead of permanently occupying its own row (see its own
+   comment), so a top-row pane's video — and this label — genuinely reaches the true top of the screen,
+   including an iPad's status-bar/notch safe area, which it never did before that change. Found directly:
+   the camera name rendered right under (overlapping) the iPad's own clock/battery status bar. */
+.pb:fullscreen .pb-pane-label { padding-top: max(5px, env(safe-area-inset-top)); }
 .pb-pane .pb-veil { padding: 10px; z-index: 4; }
 .pb-pane .pb-veil .msg { font-size: 12px; }
 .pb-center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
