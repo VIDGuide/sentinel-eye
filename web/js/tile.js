@@ -55,10 +55,10 @@ export class Tile {
           <div class="tile-actions-row">
             <button data-a="zout" title="Zoom out" aria-label="Zoom out">${icon('minus')}</button>
             <button data-a="zin" title="Zoom in (or scroll / pinch on the picture)" aria-label="Zoom in">${icon('plus')}</button>
-            <button class="txt" data-a="quality" title="Switch between SD and HD">HD</button>
+            ${opts.fixedQuality ? '' : `<button class="txt" data-a="quality" title="Switch between SD and HD">HD</button>`}
             <button data-a="snap" title="Save snapshot" aria-label="Save snapshot">${icon('camera')}</button>
-            <button data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>
-            <button data-a="bookmark" title="Bookmark this moment" aria-label="Bookmark this moment">${icon('flag')}</button>
+            ${opts.noReplay ? '' : `<button data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>`}
+            <button data-a="bookmark" title="${opts.bookmarkLabel || 'Bookmark this moment'}" aria-label="${opts.bookmarkLabel || 'Bookmark this moment'}">${icon('flag')}</button>
             <div class="menu-wrap enh-wrap">
               <button data-a="enhance" title="Live enhancement (brightness/contrast/sharpen)" aria-label="Live enhancement" aria-haspopup="true">${icon('wand')}</button>
             </div>
@@ -88,9 +88,9 @@ export class Tile {
         hit.setAttribute('aria-label', `Open ${cam.name || 'camera ' + cam.channel} large`);
         hit.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opts.onFocus?.(this); } });
       }
-      this.el.querySelector('[data-a=quality]').addEventListener('click', (e) => { e.stopPropagation(); this.setKind(this.kind === 'main' ? 'sub' : 'main'); });
+      this.el.querySelector('[data-a=quality]')?.addEventListener('click', (e) => { e.stopPropagation(); this.setKind(this.kind === 'main' ? 'sub' : 'main'); });
       this.el.querySelector('[data-a=snap]').addEventListener('click', (e) => { e.stopPropagation(); this.snapshot(); });
-      this.el.querySelector('[data-a=replay]').addEventListener('click', (e) => { e.stopPropagation(); opts.onReplay?.(this); });
+      this.el.querySelector('[data-a=replay]')?.addEventListener('click', (e) => { e.stopPropagation(); opts.onReplay?.(this); });
       this.el.querySelector('[data-a=bookmark]').addEventListener('click', (e) => { e.stopPropagation(); opts.onBookmark?.(this); });
       this.el.querySelector('[data-a=enhance]').addEventListener('click', (e) => { e.stopPropagation(); this._toggleEnhanceMenu(); });
       this.el.querySelector('[data-a=focus]').addEventListener('click', (e) => { e.stopPropagation(); opts.onFocus?.(this); });

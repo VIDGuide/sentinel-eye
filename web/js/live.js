@@ -40,10 +40,16 @@ export class LiveView {
     this.tvMode = !!ctx.tvMode?.();
     this.tvQualityPref = ctx.tvQuality?.() || 'sub';
     this.tvIndex = 0;   // currently-selected tile in TV mode's own arrow-key grid navigation
-    // TV mode's default view, when channel-zero is available, is that single stream full screen rather
-    // than the camera grid — session-only (not persisted): a "Grid" toggle in the subbar can switch back
-    // without that choice following you to the next visit.
-    this.tvSingleView = this.tvMode && this.channelZeroOn;
+    // Whether channel-zero shows at all on THIS device — its own local (localStorage), off-by-default
+    // preference everywhere except TV mode, which always shows it when the recorder offers it (see
+    // chan0Displayed): a phone or laptop shouldn't suddenly gain an extra tile because someone turned
+    // Channel-zero on for the TV in the other room.
+    this.chan0Visible = !!ctx.chan0Visible?.();
+    // Channel-zero's own single view (just that one stream, no grid) vs. showing it as the grid's first
+    // tile — session-only (not persisted): the subbar's "Grid"/"Channel 0" toggle switches between them
+    // without that choice following you to the next visit. TV mode defaults straight to the single view
+    // (its whole point — one cheap stream a weak TV browser can decode); elsewhere it starts in the grid.
+    this.chan0Single = this.tvMode && this.channelZeroOn;
     // Set once by Settings right before ctx.go('#/live') (see settings.js's TV-mode confirm flow) —
     // consumed here so a plain reload/return to Live never re-triggers an unrequested full-screen jump.
     this._autoFs = !!ctx.consumeTvFullscreen?.();
@@ -62,7 +68,8 @@ export class LiveView {
 
   get s() { return this.ctx.settings(); }
   get d() { return this.s.display; }
-  get channelZeroOn() { return !!this.s.connection.channel_zero; }
+  get channelZeroOn() { return !!this.s.connection.channel_zero; }   // the recorder actually offers it (Settings > Connection)
+  get chan0Displayed() { return this.channelZeroOn && (this.tvMode || this.chan0Visible); }   // ...and this device is actually showing it
   fitMode() { return this.fitOverride || this.d.fit; }
   toggleFit() {
     this.fitOverride = this.fitMode() === 'cover' ? 'contain' : 'cover';
@@ -78,7 +85,7 @@ export class LiveView {
     const real = this.d.order.map((id) => by[id]).filter(Boolean);
     // Always first, regardless of the configured camera order — it's the recorder's own overview of
     // everything else in this list, not one more camera slotted in wherever Arrange left it.
-    return this.channelZeroOn ? [CHAN0_CAM, ...real] : real;
+    return this.chan0Displayed ? [CHAN0_CAM, ...real] : real;
   }
   slots() { return slotsOf(this.d.layout); }
   pages() { return Math.max(1, Math.ceil(this.cams().length / this.slots())); }
@@ -145,20 +152,32 @@ export class LiveView {
   _syncFsControls() {
     const el = this.live?.querySelector('.tv-fs-controls');
     if (!el) return;
-    const single = this.tvMode && this.channelZeroOn && this.tvSingleView;
+    const single = this.chan0Displayed && this.chan0Single;
     const pages = this.pages(), multi = !single && pages > 1;
     el.querySelector('[data-a=pgprev]').hidden = !multi;
     el.querySelector('[data-a=pgnext]').hidden = !multi;
-    el.querySelector('.tv-fs-page').textContent = multi ? `${this.page + 1}/${pages}` : '';
+    // hidden, not just emptied — a single-page view (or channel-zero's own single view) has nothing here,
+    // and a childless span still keeps its own padding (.tv-fs-page), which read as a stray blank patch
+    // next to the exit button — the reported "weird shape" once prev/next have nothing to flank.
+    const pageEl = el.querySelector('.tv-fs-page');
+    pageEl.hidden = !multi;
+    pageEl.textContent = multi ? `${this.page + 1}/${pages}` : '';
   }
 
   renderBar() {
     if (!this.bar) return;
     const d = this.d, pages = this.pages(), q = this.effQuality();
-    // TV mode's channel-zero single view replaces the grid entirely — no layout/order/Arrange to offer,
-    // just the one stream — so those controls give way to a single toggle back to the grid.
-    const single = this.tvMode && this.channelZeroOn && this.tvSingleView;
-    const canToggleView = this.tvMode && this.channelZeroOn;
+    // Channel-zero's single view (its own stream, filling the wall, no grid) replaces the layout/order/
+    // Arrange controls entirely — there's nothing to lay out or reorder, just the one stream — so those
+    // give way to a single toggle back to the grid. Available on any device once channel-zero is actually
+    // showing, not just TV mode: TV mode still switches it on by default (its own point — a single cheap
+    // stream a weak TV browser can decode), everywhere else it's opt-in (see the "Channel 0" toggle below).
+    const single = this.chan0Displayed && this.chan0Single;
+    const canToggleView = this.chan0Displayed;
+    // The on/off toggle itself — hidden entirely in TV mode, where channel-zero showing is the deliberate,
+    // unconditional default (see the TV-mode confirm dialog in settings.js), not something to opt in/out
+    // of per visit the way it is on a phone, tablet, or laptop.
+    const canToggleChan0 = this.channelZeroOn && !this.tvMode;
     const seg = (v, label, tip) => `<button data-q="${v}" aria-pressed="${q === v}" title="${tip}">${label}</button>`;
     this.bar.innerHTML = `
       ${single ? '' : `<div class="menu-wrap">
@@ -166,15 +185,16 @@ export class LiveView {
         ${this.menuOpen ? `<div class="menu" style="left:0;right:auto;min-width:250px"><div class="lay">${layoutIds.map((id) =>
           `<button data-l="${id}" aria-pressed="${d.layout === id}">${layoutIcon(id, 40)}<span>${LAYOUTS[id].label}</span></button>`).join('')}</div></div>` : ''}
       </div>`}
-      <div class="seg" role="group" aria-label="Video quality">
+      ${single ? '' : `<div class="seg" role="group" aria-label="Video quality">
         ${seg('auto', 'Auto', 'HD for large tiles and the large view, SD for small tiles')}${seg('sub', 'SD', 'Always use the lighter sub-stream')}${seg('main', 'HD', 'Always use the full quality main stream')}
-      </div>
+      </div>`}
       <button class="btn" data-a="fit" aria-pressed="${this.fitMode() === 'cover'}"
         title="${this.fitMode() === 'cover' ? 'Filling tiles (cropped to fill, nothing letterboxed) — tap to letterbox instead. This session only, not saved.' : 'Letterboxed to fit — tap to fill tiles instead (crops the picture). This session only, not saved.'}">
         ${icon('crop')} ${this.fitMode() === 'cover' ? 'Fill' : 'Fit'}
       </button>
+      ${canToggleChan0 ? `<button class="btn" data-a="chan0" aria-pressed="${this.chan0Visible}" title="${this.chan0Visible ? "Hide the recorder's Channel 0 overview" : "Show the recorder's Channel 0 overview as the first tile"}">${icon('monitor')} Overview</button>` : ''}
       ${canToggleView
-        ? `<button class="btn" data-a="tvview" title="${single ? 'Switch to the camera grid' : "Back to the recorder's Channel 0 overview"}">${icon(single ? 'live' : 'monitor')} ${single ? 'Grid' : 'Channel 0'}</button>`
+        ? `<button class="btn" data-a="chan0view" title="${single ? 'Switch to the camera grid' : "Show only the recorder's Channel 0 overview"}">${icon(single ? 'live' : 'monitor')} ${single ? 'Grid' : 'Channel 0'}</button>`
         : `<button class="btn" data-a="edit" aria-pressed="${this.edit}" title="Drag tiles to change their order (E)">${icon('move')} Arrange</button>`}
       ${!single && d.rotate_seconds > 0 && pages > 1 ? `<button class="btn" data-a="rotate" aria-pressed="${this.rotating}" title="Auto-rotate pages every ${d.rotate_seconds}s">${icon(this.rotating ? 'pause' : 'play')} Rotate</button>` : ''}
       <span class="spacer"></span>
@@ -194,7 +214,13 @@ export class LiveView {
     }));
     this.bar.querySelector('[data-a=fit]').addEventListener('click', () => this.toggleFit());
     this.bar.querySelector('[data-a=edit]')?.addEventListener('click', () => this.toggleEdit());
-    this.bar.querySelector('[data-a=tvview]')?.addEventListener('click', () => { this.tvSingleView = !this.tvSingleView; this.renderBar(); this.renderWall(); });
+    this.bar.querySelector('[data-a=chan0]')?.addEventListener('click', () => {
+      this.chan0Visible = !this.chan0Visible;
+      this.ctx.setChan0Visible?.(this.chan0Visible);
+      if (!this.chan0Visible) this.chan0Single = false;   // turning it off while viewing it alone has nothing left to show — land back in the grid for next time
+      this.renderBar(); this.renderWall();
+    });
+    this.bar.querySelector('[data-a=chan0view]')?.addEventListener('click', () => { this.chan0Single = !this.chan0Single; this.renderBar(); this.renderWall(); });
     this.bar.querySelector('[data-a=rotate]')?.addEventListener('click', () => { this.rotating = !this.rotating; this.rotSince = Date.now(); this.renderBar(); });
     this.bar.querySelector('[data-a=prev]')?.addEventListener('click', () => this.goPage(this.page - 1));
     this.bar.querySelector('[data-a=next]')?.addEventListener('click', () => this.goPage(this.page + 1));
@@ -209,14 +235,18 @@ export class LiveView {
   // lagging on the Tizen browser this was built for) but a TV browser with room for it can switch to HD
   // from the same quality control every other client uses.
   effQuality() { return this.tvMode ? this.tvQualityPref : this.d.quality; }
-  qualityFor(cell) {
+  qualityFor(cell, cam) {
+    // Channel-zero has exactly one real stream (confirmed directly: the recorder 400s a request for a
+    // second one) — chan0_main in go2rtc is only ever an alias of the same source, not a sharper picture,
+    // so requesting anything but 'sub' for it would just make the SD/HD badge lie about what's on screen.
+    if (isChan0(cam)) return 'sub';
     const q = this.effQuality();
     return q === 'main' ? 'main' : q === 'sub' ? 'sub' : cell.big ? 'main' : 'sub';
   }
 
   renderWall() {
     if (!this.wall) return;
-    if (this.tvMode && this.channelZeroOn && this.tvSingleView) { this._renderTvSingleView(); return; }
+    if (this.chan0Displayed && this.chan0Single) { this._renderChan0SingleView(); return; }
     this.disposeTiles();
     const layout = LAYOUTS[this.d.layout], slots = layout.cells.length, cams = this.cams();
     const w = this.wall;
@@ -230,11 +260,14 @@ export class LiveView {
       let el;
       if (cam) {
         // Channel-zero isn't a real DVR channel with its own recording/event timeline, so instant replay
-        // and bookmarking (both keyed to a real channel number server-side) don't apply to it — omitted
-        // rather than wired up to fail.
+        // (keyed to a real channel number server-side) doesn't apply to it — the button's hidden outright
+        // (tile.js's noReplay), not just wired up to fail. Bookmarking it instead applies to every real
+        // camera at once (bookmarkAllCams) — the closest honest equivalent to "this moment," since
+        // channel-zero itself has no timeline of its own to find a bookmark on later.
         const chan0 = isChan0(cam);
         const t = new Tile(cam, {
-          kind: this.qualityFor(cell), display: this.d, chrome: true, tv: this.tvMode,
+          kind: this.qualityFor(cell, cam), display: this.d, chrome: true, tv: this.tvMode,
+          noReplay: chan0, fixedQuality: chan0, bookmarkLabel: chan0 ? 'Bookmark this moment on every camera' : undefined,
           zoomInit: this.zoomMem[cam.id],
           onZoom: (id, st) => { if (st.s > 1.001) this.zoomMem[id] = st; else delete this.zoomMem[id]; },
           onFocus: () => this.ctx.go(`#/live/${cam.id}`),
@@ -242,7 +275,7 @@ export class LiveView {
           onHevcFallback: () => toast('This browser could not play H.265, so HD now uses a converted H.264 stream.', 'ok', 7000),
           onKindFail: (tile, kind) => toast(`${cam.name || 'Camera'}: the ${kind === 'main' ? 'HD' : 'SD'} stream could not be started. Keeping the current stream.`, 'bad', 6000),
           onReplay: chan0 ? null : () => this.openReplay(cam),
-          onBookmark: chan0 ? null : () => this.bookmarkNow(cam),
+          onBookmark: chan0 ? () => this.bookmarkAllCams() : () => this.bookmarkNow(cam),
         });
         t.cellIndex = i;
         this.tiles.push(t);
@@ -264,27 +297,27 @@ export class LiveView {
     }
   }
 
-  /** TV mode's default view when channel-zero is on: just that one stream, filling the wall — no grid,
-   * no per-camera actions that don't apply to it (see the chan0 comment above), no Arrange. The subbar's
-   * "Grid" button (renderBar) switches back to the normal TV-mode camera grid. */
-  _renderTvSingleView() {
+  /** Channel-zero's own single view — just that one stream, filling the wall — no grid, no per-camera
+   * actions that don't apply to it (see the chan0 comment in renderWall), no Arrange. TV mode defaults
+   * here; any device can reach it once channel-zero is showing (the subbar's "Grid"/"Channel 0" toggle). */
+  _renderChan0SingleView() {
     this.disposeTiles();
     const w = this.wall;
-    w.className = 'wall tv-single' + (this.fitMode() === 'cover' ? ' fill' : '');
+    w.className = 'wall chan0-single' + (this.fitMode() === 'cover' ? ' fill' : '');
     w.style.gridTemplateColumns = '1fr';
     w.style.gridTemplateRows = '1fr';
     w.style.setProperty('--fit', this.d.fit);
     w.innerHTML = '';
-    const kind = this.effQuality() === 'main' ? 'main' : 'sub';
     const t = new Tile(CHAN0_CAM, {
-      kind, display: this.d, chrome: true, tv: this.tvMode,
+      kind: 'sub', display: this.d, chrome: true, tv: this.tvMode,   // one real stream — see qualityFor's own comment
+      noReplay: true, fixedQuality: true, bookmarkLabel: 'Bookmark this moment on every camera',
       onZoom: () => {},
       onFocus: null,
       onUpdate: () => this.countLive(),
       onHevcFallback: () => toast('This browser could not play H.265, so HD now uses a converted H.264 stream.', 'ok', 7000),
       onKindFail: () => toast('The stream could not be started. Keeping the current one.', 'bad', 6000),
       onReplay: null,
-      onBookmark: null,
+      onBookmark: () => this.bookmarkAllCams(),
     });
     this.tiles.push(t);
     t.el.style.gridColumn = '1 / span 1';
@@ -394,7 +427,7 @@ export class LiveView {
     this.toggleEdit(false);
     const cams = this.cams();
     const idx = cams.findIndex((c) => c.id === cam.id);
-    const kind = this.effQuality() === 'sub' ? 'sub' : 'main';
+    const kind = isChan0(cam) ? 'sub' : (this.effQuality() === 'sub' ? 'sub' : 'main');
 
     // Seamless upgrade: reuse the tile already running in the grid (same player, same connection) instead
     // of disposing it and opening a fresh one — no reconnect, no black frame, and the grid's other tiles
@@ -418,12 +451,12 @@ export class LiveView {
     f.innerHTML = `<div class="focus-bar">
         <button class="btn" data-a="close">${icon('left')} Back</button>
         <h2>${esc(cam.name || 'Camera ' + cam.channel)}</h2><span class="tag fx" ${summarizeEnhParams(tile.enhParams).active ? '' : 'hidden'} title="Live filters active">${icon('wand')}</span><span class="pill stat"></span><span class="spacer"></span>
-        <div class="seg" role="group" aria-label="Video quality"><button data-k="sub">SD</button><button data-k="main">HD</button></div>
+        ${isChan0(cam) ? '' : `<div class="seg" role="group" aria-label="Video quality"><button data-k="sub">SD</button><button data-k="main">HD</button></div>`}
         <div class="zoomctl" role="group" aria-label="Zoom"><button class="btn icon" data-a="zout" title="Zoom out (-)" aria-label="Zoom out">${icon('minus')}</button>
           <button class="btn pct" data-a="zreset" title="Reset zoom (0)">100%</button><button class="btn icon" data-a="zin" title="Zoom in (+)" aria-label="Zoom in">${icon('plus')}</button></div>
         <button class="btn icon" data-a="snap" title="Save snapshot" aria-label="Save snapshot">${icon('camera')}</button>
-        <button class="btn icon" data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>
-        <button class="btn icon" data-a="bookmark" title="Bookmark this moment" aria-label="Bookmark this moment">${icon('flag')}</button>
+        ${isChan0(cam) ? '' : `<button class="btn icon" data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>`}
+        <button class="btn icon" data-a="bookmark" title="${isChan0(cam) ? 'Bookmark this moment on every camera' : 'Bookmark this moment'}" aria-label="${isChan0(cam) ? 'Bookmark this moment on every camera' : 'Bookmark this moment'}">${icon('flag')}</button>
         <div class="menu-wrap enh-wrap"><button class="btn icon" data-a="enhance" title="Live enhancement" aria-label="Live enhancement" aria-haspopup="true">${icon('wand')}</button></div>
         <button class="btn icon" data-a="fit" aria-pressed="${this.fitMode() === 'cover'}"
           title="${this.fitMode() === 'cover' ? 'Filling (cropped) — tap to letterbox instead. This session only.' : 'Letterboxed to fit — tap to fill instead (crops). This session only.'}"
@@ -446,8 +479,8 @@ export class LiveView {
     f.querySelector('[data-a=close]').addEventListener('click', () => this.ctx.go('#/live'));
     f.querySelector('[data-a=x]').addEventListener('click', () => this.ctx.go('#/live'));
     f.querySelector('[data-a=snap]').addEventListener('click', () => { if (!tile.snapshot()) toast('No picture to save yet.', 'bad'); });
-    f.querySelector('[data-a=replay]').addEventListener('click', () => this.openReplay(cam));
-    f.querySelector('[data-a=bookmark]').addEventListener('click', () => this.bookmarkNow(cam));
+    f.querySelector('[data-a=replay]')?.addEventListener('click', () => this.openReplay(cam));
+    f.querySelector('[data-a=bookmark]').addEventListener('click', () => (isChan0(cam) ? this.bookmarkAllCams() : this.bookmarkNow(cam)));
     f.querySelector('[data-a=fs]').addEventListener('click', () => this.toggleFullscreen(f));
     f.querySelector('[data-a=fit]').addEventListener('click', () => {
       this.toggleFit();
@@ -527,7 +560,7 @@ export class LiveView {
       tile.enableZoom(tile.el.querySelector('.hit'), { dbl: false });   // back to grid rules: click opens focus, no dbl-click zoom
       const cell = LAYOUTS[this.d.layout].cells[tile.cellIndex];
       if (cell) { tile.el.style.gridColumn = `${cell.c} / span ${cell.w}`; tile.el.style.gridRow = `${cell.r} / span ${cell.h}`; }
-      const wantKind = this.qualityFor(cell || {});
+      const wantKind = this.qualityFor(cell || {}, tile.cam);
       if (tile.kind !== wantKind) tile.setKind(wantKind);
       this.wall.append(tile.el);
     } else {
@@ -564,6 +597,23 @@ export class LiveView {
     try {
       await api.createBookmark({ channels: [cam.id], time_utc: new Date().toISOString(), ...r });
       toast('Bookmark saved.', 'ok');
+    } catch (e) {
+      toast(e.message || 'Could not save the bookmark', 'bad');
+    }
+  }
+
+  /** Channel-zero isn't a real recorded channel of its own — it's the recorder's composite of every real
+   * one — so bookmarking "it" applies to every real camera at once instead (the same createBookmark call
+   * already takes a `channels` array; this is just all of them). The closest honest equivalent to
+   * bookmarking the whole property at this moment, rather than a channel that has no timeline to find it on. */
+  async bookmarkAllCams() {
+    const real = this.s.channels.filter((c) => c.enabled);
+    if (!real.length) return;
+    const r = await bookmarkDialog({ subtitle: `All ${real.length} cameras · right now` });
+    if (!r) return;
+    try {
+      await api.createBookmark({ channels: real.map((c) => c.id), time_utc: new Date().toISOString(), ...r });
+      toast('Bookmark saved on every camera.', 'ok');
     } catch (e) {
       toast(e.message || 'Could not save the bookmark', 'bad');
     }
@@ -653,8 +703,8 @@ export class LiveView {
       else if (k === 'ArrowRight') this.stepFocus(1);
       else if (k === 'f' || k === 'F') this.toggleFullscreen(this.focus.el);
       else if (k === 's' || k === 'S') this.focus.tile.snapshot();
-      else if (k === 'h' || k === 'H') this.focus.tile.setKind(this.focus.tile.kind === 'main' ? 'sub' : 'main');
-      else if (k === 'b' || k === 'B') this.bookmarkNow(this.focus.tile.cam);
+      else if ((k === 'h' || k === 'H') && !isChan0(this.focus.tile.cam)) this.focus.tile.setKind(this.focus.tile.kind === 'main' ? 'sub' : 'main');
+      else if (k === 'b' || k === 'B') { const c = this.focus.tile.cam; isChan0(c) ? this.bookmarkAllCams() : this.bookmarkNow(c); }
       return;
     }
     // TV mode: arrow keys move a selection cursor between tiles instead of paging — a D-pad's arrow keys
