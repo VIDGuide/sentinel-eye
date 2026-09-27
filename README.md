@@ -150,25 +150,34 @@ browser — playing the original H.265 directly is an opt-in setting for lower C
 ## Running it
 
 ### Requirements
-- macOS (Apple Silicon or Intel) with [Homebrew](https://brew.sh)
+- macOS (Apple Silicon or Intel) or Linux, with a package manager for ffmpeg
 - Python 3
 - A Hikvision DVR/NVR or camera reachable over RTSP on your network
 
-Only built and tested on macOS so far — that's the machine this was written for. The Python backend and
-`go2rtc` are both cross-platform in principle, so Linux/Windows support is realistic, but `run.sh`,
-Homebrew, and the go2rtc binary fetch are all Mac-specific today and nothing else has been verified. See
-[Contributing](#contributing) below if you'd like to help change that.
+Built and tested on macOS first (that's the machine this was written for). Linux works too — the Python
+backend and `go2rtc` are cross-platform, and `run.sh` now picks the right `go2rtc` binary for macOS or
+Linux. Windows is still untested. See [Contributing](#contributing) below if you'd like to help with that.
 
 ### Install
+
+macOS:
 
 ```sh
 brew install ffmpeg
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
+Linux (Debian/Ubuntu — substitute your distro's packages elsewhere):
+
+```sh
+sudo apt-get install -y ffmpeg python3-venv
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
 That's it — `./run.sh` (below) fetches the right [go2rtc](https://github.com/AlexxIT/go2rtc) media-server
-binary for your Mac's CPU (Apple Silicon or Intel) into `bin/go2rtc` the first time it runs, since that
-binary is arch-specific and isn't committed to the repo.
+binary for your OS and CPU into `bin/go2rtc` the first time it runs, since that binary is arch-specific and
+isn't committed to the repo. (Note the upstream fetch differs by OS: macOS assets are `.zip` archives, Linux
+assets are bare binaries — `run.sh` handles both.)
 
 ### Configure
 
@@ -221,7 +230,7 @@ SENTINEL_HOST=0.0.0.0 ./run.sh
 ```
 
 Then, on your phone (connected to the **same Wi-Fi**), browse to `http://<this-machine's-LAN-IP>:8007` — find
-the IP with `ipconfig getifaddr en0` (Wi-Fi) on the Mac.
+the IP with `ipconfig getifaddr en0` (Wi-Fi) on macOS, or `hostname -I` (or `ip -4 addr`) on Linux.
 
 Because there is still no login, this makes the dashboard — and your camera feeds — reachable by **anything
 else on that network**, not just your phone: other devices on the same Wi-Fi, a guest network if it shares
@@ -315,9 +324,9 @@ above already admits are untested or missing:
   the encryption support (`tools/NOTES.md`) is specific to Hikvision's own scheme. A Dahua, Reolink,
   ONVIF-generic, or other vendor's equivalent would be a real, separate effort — genuinely useful, and not
   something this project currently attempts.
-- **Windows and Linux support.** The Python backend and `go2rtc` don't inherently need macOS, but `run.sh`,
-  the Homebrew-based install, and the go2rtc binary fetch all currently assume it, and nothing has been run
-  or tested on another OS.
+- **Windows support.** The Linux port landed first (see above); Windows is still untested. `run.sh` is a
+  POSIX shell script, so it would need a `.bat`/PowerShell equivalent, and the go2rtc fetch would need the
+  `go2rtc_win64.zip` asset — the Python backend itself has no obvious Windows blockers.
 - **Features.** `docs/SPEC.md` documents what's built, what was deliberately left out, and why — a good
   starting point for seeing what's already been considered and what's genuinely open.
 
