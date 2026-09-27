@@ -72,15 +72,39 @@ export class LiveView {
         <h2>No cameras yet</h2><p>Add or enable channels to start watching.</p><a class="btn primary" href="#/settings/channels">Manage channels</a></div></main>`;
       return;
     }
-    this.root.innerHTML = `<main class="liveview"><div class="subbar"></div><div class="wall"></div></main>`;
+    this.root.innerHTML = `<main class="liveview"><div class="subbar"></div><div class="wall"></div>
+      <button class="tv-fs-exit" data-a="wallfs" title="Exit full screen (F)" aria-label="Exit full screen">${icon('fullscreen')}</button></main>`;
     this.live = this.root.querySelector('.liveview');
     this.bar = this.root.querySelector('.subbar');
     this.wall = this.root.querySelector('.wall');
     this.wall.addEventListener('focusin', (e) => this._tvFocusIn(e));
+    this.live.querySelector('.tv-fs-exit').addEventListener('click', () => this.toggleFullscreen(this.live));
+    this._bindWallFsAutoHide();
     this.page = Math.min(this.page, this.pages() - 1);
     this.renderBar();
     this.renderWall();
     if (this.pendingFocusId) this.route(this.pendingFocusId);
+  }
+
+  // TV mode + full screen on the grid itself (not a single camera's own focus view, which already has
+  // _bindFocusAutoHide): the subbar disappears entirely (CSS, gated to html.tv-mode .liveview:fullscreen)
+  // so the wall of cameras is the only thing on screen, and this is what's left to get back out — a single
+  // floating button, itself hidden until you move the mouse or touch the screen, same idle cycle as
+  // _bindFocusAutoHide. A no-op everywhere else: outside that exact fullscreen+TV-mode state the button
+  // stays display:none regardless of the .show class this adds.
+  _bindWallFsAutoHide() {
+    const btn = this.live.querySelector('.tv-fs-exit');
+    let hideTimer;
+    const hide = () => btn.classList.remove('show');
+    const show = () => {
+      btn.classList.add('show');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hide, 2600);
+    };
+    this.live.addEventListener('mousemove', show);
+    this.live.addEventListener('mouseenter', show);
+    this.live.addEventListener('touchstart', show, { passive: true });
+    show();
   }
 
   renderBar() {

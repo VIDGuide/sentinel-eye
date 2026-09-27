@@ -851,6 +851,12 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 html.tv-mode { font-size: 19px; }   /* basis for the rem sizes below; nothing outside .liveview uses rem, so shared chrome elsewhere is untouched */
 html.tv-mode .subbar { min-height: 60px; gap: 10px; padding: 10px 14px; }
 html.tv-mode .subbar .btn, html.tv-mode .subbar .seg button, html.tv-mode .subbar .pill { font-size: 1.05rem; padding: 10px 16px; }
+/* .btn.icon (fullscreen, zoom, snapshot, etc.) is a fixed 34px square with zero padding by design (the SVG
+   IS the content) — inheriting the text button's padding above put a 34px-border-box button through 16px
+   of horizontal padding alone, squeezing its 18px icon into ~2px of content box. Same specificity as the
+   base .btn.icon rule (two classes each), so being later in the file was enough to win; this restores its
+   own sizing instead of the text-button treatment, just bigger. */
+html.tv-mode .subbar .btn.icon, html.tv-mode .focus-bar .btn.icon { width: 44px; height: 44px; padding: 0; }
 /* Per-tile quick actions stay reachable exactly the way they already are everywhere else in the app — a
    mouse hovering the tile (laptop/desktop, see .tile:hover) or the tile's hit-target having keyboard focus
    (.tile:focus-within, which now includes TV-mode's own arrow-key selection below) — nothing TV-specific
@@ -867,3 +873,19 @@ html.tv-mode .savebar .btn:focus-visible,
 html.tv-mode button:focus-visible,
 html.tv-mode a:focus-visible { outline: 4px solid var(--accent); outline-offset: 2px; }
 html.tv-mode .nav-arrow { width: 56px; height: 56px; }
+
+/* Full screen on the grid itself, in TV mode: hide the subbar entirely — every stream tile is the point of
+   this screen, not the toolbar above it — and leave a single floating "exit full screen" button in its
+   place, positioned over the video and hidden until the cursor/remote moves (live.js's
+   _bindWallFsAutoHide, same idle-hide cycle .focus-bar/.nav-arrow already use in the single-camera focus
+   view). Escape always still works too — that's the browser's own Fullscreen API, not this button. */
+html.tv-mode .liveview:fullscreen .subbar { display: none; }
+.tv-fs-exit { display: none; }
+html.tv-mode .liveview:fullscreen .tv-fs-exit {
+  display: grid; place-items: center; position: absolute; z-index: 8;
+  top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right));
+  width: 48px; height: 48px; border: 0; border-radius: 10px;
+  background: rgba(15, 20, 28, .7); color: #fff; opacity: 0; pointer-events: none; transition: opacity .22s ease;
+}
+html.tv-mode .liveview:fullscreen .tv-fs-exit.show { opacity: 1; pointer-events: auto; }
+html.tv-mode .liveview:fullscreen .tv-fs-exit:hover { background: var(--accent); color: var(--accent-ink); }
