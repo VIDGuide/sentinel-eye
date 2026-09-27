@@ -325,3 +325,7 @@ If you're picking up one of the bigger items (a new DVR brand, a new OS), consid
 compare notes before sinking a lot of time in — this project's own conventions (no build step for the
 frontend, the settings/RTSP path assumptions baked into `app/hikrelay.py` and `app/go2rtc.py`) are worth
 knowing going in.
+
+## License
+
+[MIT](LICENSE)
