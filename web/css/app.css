@@ -911,3 +911,23 @@ html.tv-mode .liveview:fullscreen .tv-fs-controls.show { opacity: 1; pointer-eve
 .tv-fs-btn[hidden] { display: none; }   /* single-page live: prev/next set [hidden] via JS — needs stating explicitly, since the display:grid above outranks the browser's own [hidden] default */
 .tv-fs-btn:hover { background: var(--accent); color: var(--accent-ink); }
 .tv-fs-page { padding: 0 4px; color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Same idle cycle, extended to every tile's own identifying chrome — name, live dot, SD/HD tag, the
+   tile-actions menu, the zoom-reset pill — not just the subbar and the floating exit/page cluster above.
+   Without this, TV mode's own arrow-key selection left the selected tile's .tile-actions visibly revealed
+   forever (:focus-within, the same rule that reveals it on hover/touch everywhere else in the app — it
+   never stops being "focused" just because nothing moved), which defeated the point of a full screen with
+   nothing but the cameras on it. live.js's _bindWallFsAutoHide toggles the same .show it already used for
+   .tv-fs-controls, now on .liveview itself so it survives renderWall()/renderBar() rebuilding .wall's and
+   .subbar's own contents (unlike a class on .wall, which those calls reset on every layout/page/quality
+   change). !important because this has to beat :hover/:focus-within's own reveal rules outright while
+   idle, not merely tie with them on specificity — the same technique the mobile grid reflow already uses
+   a bit further down for the same reason (an unconditional override, not one more rule in the normal
+   cascade). .ev-badges (motion/tamper alerts) are deliberately exempt: real signal, not identification
+   chrome, so idle is not a reason to hide it. */
+html.tv-mode .liveview:fullscreen:not(.show) .tile .ov,
+html.tv-mode .liveview:fullscreen:not(.show) .tile .tile-actions,
+html.tv-mode .liveview:fullscreen:not(.show) .tile > .zoomtag {
+  opacity: 0 !important; pointer-events: none !important;
+}
+html.tv-mode .liveview:fullscreen .tile .ov { transition: opacity .22s ease; }

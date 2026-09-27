@@ -5,6 +5,7 @@ import { PlaybackView } from './playback.js';
 import { EventsView } from './events.js';
 import { SettingsView } from './settings.js';
 import { esc, icon, toast } from './ui.js';
+import { layoutIds } from './layouts.js';
 
 const state = { settings: null, view: null, kind: null, hash: '#/live' };
 const app = document.getElementById('app');
@@ -47,6 +48,15 @@ const TV_QUALITY_KEY = 'sentinel-eye-tv-quality';
 function getTvQuality() { try { const v = localStorage.getItem(TV_QUALITY_KEY); return v === 'main' || v === 'auto' ? v : 'sub'; } catch { return 'sub'; } }
 function setTvQuality(v) { try { localStorage.setItem(TV_QUALITY_KEY, v); } catch { /* private mode */ } }
 
+// TV mode's own grid layout — same reasoning as tvQuality, but for memory rather than bandwidth: a TV's
+// browser typically has far less RAM than a phone or laptop, and decoding a full wall of tiles at once
+// (even at SD) is a real crash risk there, not just a lag one. Defaults to the single biggest, cheapest
+// tile (1x1) rather than whatever grid the synced Settings > Display layout happens to be; picking a
+// bigger one from the TV itself remembers that choice per-browser instead of reverting every visit.
+const TV_LAYOUT_KEY = 'sentinel-eye-tv-layout';
+function getTvLayout() { try { const v = localStorage.getItem(TV_LAYOUT_KEY); return layoutIds.includes(v) ? v : '1x1'; } catch { return '1x1'; } }
+function setTvLayout(v) { try { localStorage.setItem(TV_LAYOUT_KEY, v); } catch { /* private mode */ } }
+
 // One-shot signal from Settings' "go to TV mode now" confirm flow to the LiveView it's about to build:
 // auto-request full screen this one time. A plain in-memory flag, not localStorage — it must NOT survive
 // past the very next LiveView it reaches (a later plain visit/reload must never auto-fullscreen unasked).
@@ -70,6 +80,8 @@ const ctx = {
   consumeTvFullscreen,
   tvQuality: getTvQuality,
   setTvQuality,
+  tvLayout: getTvLayout,
+  setTvLayout,
   chan0Visible: getChan0Visible,
   setChan0Visible,
   go: (h) => { location.hash = h; },

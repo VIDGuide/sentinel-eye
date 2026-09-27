@@ -39,6 +39,7 @@ export class LiveView {
     // main.js route() — so a fresh read here already picks up a toggle flipped from within Settings).
     this.tvMode = !!ctx.tvMode?.();
     this.tvQualityPref = ctx.tvQuality?.() || 'sub';
+    this.tvLayoutPref = ctx.tvLayout?.() || '1x1';
     this.tvIndex = 0;   // currently-selected tile in TV mode's own arrow-key grid navigation
     // Whether channel-zero shows at all on THIS device — its own local (localStorage), off-by-default
     // preference everywhere except TV mode, which always shows it when the recorder offers it (see
@@ -87,7 +88,7 @@ export class LiveView {
     // everything else in this list, not one more camera slotted in wherever Arrange left it.
     return this.chan0Displayed ? [CHAN0_CAM, ...real] : real;
   }
-  slots() { return slotsOf(this.d.layout); }
+  slots() { return slotsOf(this.effLayout()); }
   pages() { return Math.max(1, Math.ceil(this.cams().length / this.slots())); }
 
   // ---------------------------------------------------------------- structure
@@ -132,15 +133,24 @@ export class LiveView {
   // there's more than one page), a page indicator, and exit — is what's left to control it. Hidden until
   // you move the mouse or touch the screen, same idle cycle as _bindFocusAutoHide. A no-op everywhere else:
   // outside that exact fullscreen+TV-mode state the cluster stays display:none regardless of .show.
+  // The same idle state also drives .show on `this.live` itself (not `this.wall` — renderWall()/renderBar()
+  // reset .wall's and .subbar's own className on every layout/page/quality change, which would wipe a class
+  // living there; .liveview's own className is set once in build() and never touched again), which the CSS
+  // uses to hide every tile's name/SD-HD tag/tile-actions menu too — true full screen, not just no subbar.
   _bindWallFsAutoHide() {
     const el = this.live.querySelector('.tv-fs-controls');
     let hideTimer;
-    const hide = () => el.classList.remove('show');
-    const show = () => {
+    const hide = () => { el.classList.remove('show'); this.live.classList.remove('show'); };
+    // Exposed on the instance (not just closed over) so syncFullscreen() can call it directly the moment
+    // fullscreen actually starts — see that method's own comment for why that matters, not just this bind
+    // call's own initial show() a few lines down.
+    this._fsShow = () => {
       el.classList.add('show');
+      this.live.classList.add('show');
       clearTimeout(hideTimer);
       hideTimer = setTimeout(hide, 2600);
     };
+    const show = this._fsShow;
     this.live.addEventListener('mousemove', show);
     this.live.addEventListener('mouseenter', show);
     this.live.addEventListener('touchstart', show, { passive: true });
@@ -166,7 +176,7 @@ export class LiveView {
 
   renderBar() {
     if (!this.bar) return;
-    const d = this.d, pages = this.pages(), q = this.effQuality();
+    const d = this.d, pages = this.pages(), q = this.effQuality(), layout = this.effLayout();
     // Channel-zero's single view (its own stream, filling the wall, no grid) replaces the layout/order/
     // Arrange controls entirely — there's nothing to lay out or reorder, just the one stream — so those
     // give way to a single toggle back to the grid. Available on any device once channel-zero is actually
@@ -181,9 +191,9 @@ export class LiveView {
     const seg = (v, label, tip) => `<button data-q="${v}" aria-pressed="${q === v}" title="${tip}">${label}</button>`;
     this.bar.innerHTML = `
       ${single ? '' : `<div class="menu-wrap">
-        <button class="btn" data-a="layout" aria-haspopup="true" aria-expanded="${this.menuOpen}">${layoutIcon(d.layout, 22)} ${LAYOUTS[d.layout].label} ${icon('down')}</button>
+        <button class="btn" data-a="layout" aria-haspopup="true" aria-expanded="${this.menuOpen}">${layoutIcon(layout, 22)} ${LAYOUTS[layout].label} ${icon('down')}</button>
         ${this.menuOpen ? `<div class="menu" style="left:0;right:auto;min-width:250px"><div class="lay">${layoutIds.map((id) =>
-          `<button data-l="${id}" aria-pressed="${d.layout === id}">${layoutIcon(id, 40)}<span>${LAYOUTS[id].label}</span></button>`).join('')}</div></div>` : ''}
+          `<button data-l="${id}" aria-pressed="${layout === id}">${layoutIcon(id, 40)}<span>${LAYOUTS[id].label}</span></button>`).join('')}</div></div>` : ''}
       </div>`}
       ${single ? '' : `<div class="seg" role="group" aria-label="Video quality">
         ${seg('auto', 'Auto', 'HD for large tiles and the large view, SD for small tiles')}${seg('sub', 'SD', 'Always use the lighter sub-stream')}${seg('main', 'HD', 'Always use the full quality main stream')}
@@ -204,7 +214,12 @@ export class LiveView {
       <span class="pill" title="Cameras currently showing live video"><span class="dot ${this.liveCount === this.tiles.length && this.tiles.length ? 'live' : 'wait'}"></span><span class="livecount">${this.liveCount ?? 0}/${this.tiles.length} live</span></span>
       <button class="btn icon" data-a="wallfs" title="Full screen" aria-label="Full screen">${icon('fullscreen')}</button>`;
     this.bar.querySelector('[data-a=layout]')?.addEventListener('click', (e) => { e.stopPropagation(); this.menuOpen = !this.menuOpen; this.renderBar(); });
-    this.bar.querySelectorAll('[data-l]').forEach((b) => b.addEventListener('click', () => this.setDisplay({ layout: b.dataset.l }, true)));
+    this.bar.querySelectorAll('[data-l]').forEach((b) => b.addEventListener('click', () => {
+      // TV mode: local preference (see effLayout()), not the setting every other device shares — picking a
+      // bigger grid from the TV itself shouldn't hand a phone on the same server a wall of tiles it never asked for.
+      if (this.tvMode) { this.tvLayoutPref = b.dataset.l; this.ctx.setTvLayout?.(b.dataset.l); this.menuOpen = false; this.page = 0; this.renderBar(); this.renderWall(); }
+      else this.setDisplay({ layout: b.dataset.l }, true);
+    }));
     this.bar.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => {
       // TV mode: this control still works, it just writes to the local TV-only preference (see
       // effQuality()) instead of the setting every other device shares — flipping a TV to HD shouldn't
@@ -235,6 +250,11 @@ export class LiveView {
   // lagging on the Tizen browser this was built for) but a TV browser with room for it can switch to HD
   // from the same quality control every other client uses.
   effQuality() { return this.tvMode ? this.tvQualityPref : this.d.quality; }
+  // Same reasoning, for memory instead of bandwidth: TV mode's own grid layout defaults to 1x1 (main.js's
+  // tvLayout) rather than whatever the synced Settings > Display layout is — a full wall of tiles is a real
+  // crash risk on a TV's limited RAM, not just a lag one. A layout picked from the TV itself overrides that
+  // default from then on, remembered per-browser; it never writes back to the setting every other device shares.
+  effLayout() { return this.tvMode ? this.tvLayoutPref : this.d.layout; }
   qualityFor(cell, cam) {
     // Channel-zero has exactly one real stream (confirmed directly: the recorder 400s a request for a
     // second one) — chan0_main in go2rtc is only ever an alias of the same source, not a sharper picture,
@@ -248,7 +268,7 @@ export class LiveView {
     if (!this.wall) return;
     if (this.chan0Displayed && this.chan0Single) { this._renderChan0SingleView(); return; }
     this.disposeTiles();
-    const layout = LAYOUTS[this.d.layout], slots = layout.cells.length, cams = this.cams();
+    const layout = LAYOUTS[this.effLayout()], slots = layout.cells.length, cams = this.cams();
     const w = this.wall;
     w.className = 'wall' + (this.edit ? ' editing' : '') + (this.fitMode() === 'cover' ? ' fill' : '');
     w.style.gridTemplateColumns = `repeat(${layout.cols}, minmax(0, 1fr))`;
@@ -558,7 +578,7 @@ export class LiveView {
       tile.el.style.cssText = '';
       tile.opts.onUpdate = () => this.countLive();
       tile.enableZoom(tile.el.querySelector('.hit'), { dbl: false });   // back to grid rules: click opens focus, no dbl-click zoom
-      const cell = LAYOUTS[this.d.layout].cells[tile.cellIndex];
+      const cell = LAYOUTS[this.effLayout()].cells[tile.cellIndex];
       if (cell) { tile.el.style.gridColumn = `${cell.c} / span ${cell.w}`; tile.el.style.gridRow = `${cell.r} / span ${cell.h}`; }
       const wantKind = this.qualityFor(cell || {}, tile.cam);
       if (tile.kind !== wantKind) tile.setKind(wantKind);
@@ -687,7 +707,15 @@ export class LiveView {
     if (document.fullscreenElement) document.exitFullscreen();
     else el?.requestFullscreen?.().catch(() => toast('Full screen is not available here.', 'bad'));
   }
-  syncFullscreen() {}
+  // Restarts the fullscreen chrome's idle timer the moment fullscreen actually begins, not whenever
+  // _bindWallFsAutoHide happened to run (build() time — which, via the Settings "go to TV mode" confirm
+  // flow, can be seconds earlier: a settings save, a navigation, then the fullscreen request itself all
+  // happen first). Without this, that gap could already exceed the 2.6s idle window on its own, so the
+  // very first thing a real user saw on entering fullscreen was already the chrome-hidden state — never
+  // having had a chance to see the labels/controls at all, let alone watch them fade.
+  syncFullscreen() {
+    if (document.fullscreenElement === this.live) this._fsShow?.();
+  }
 
   key(e) {
     if (!this.wall || e.target?.closest?.('input, select, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -714,7 +742,7 @@ export class LiveView {
     // via the real keydown handler already on its .hit element (tile.js, under the same flag).
     if (this.tvMode && (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown')) {
       e.preventDefault();
-      const cols = LAYOUTS[this.d.layout].cols || 1;
+      const cols = LAYOUTS[this.effLayout()].cols || 1;
       this._tvMove(k === 'ArrowLeft' ? -1 : k === 'ArrowRight' ? 1 : k === 'ArrowUp' ? -cols : cols);
       return;
     }
