@@ -87,6 +87,23 @@ export class EventsView {
       this._renderCamList();
       this.search();
     }));
+    const toggleBtn = this.root.querySelector('[data-a=togglecams]');
+    if (toggleBtn) toggleBtn.innerHTML = `${icon('video')} Cameras (${this.selectedCams.size})`;
+  }
+
+  // Same off-canvas drawer pattern Playback uses (and the same .pb-side/.pb-panel-toggle/.pb-panel-scrim
+  // classes, already shared for the panels themselves) — below the width both views stack panels in a
+  // column, opening either one by tapping its topline/toolbar button instead of always taking screen space
+  // away from the results.
+  _bindPanelToggles() {
+    const left = this.root.querySelector('.pb-side-left'), right = this.root.querySelector('.pb-side-right');
+    const scrim = this.root.querySelector('.pb-panel-scrim');
+    const close = () => { left.classList.remove('show'); right.classList.remove('show'); scrim.hidden = true; };
+    const open = (panel) => { const wasOpen = panel.classList.contains('show'); close(); if (!wasOpen) { panel.classList.add('show'); scrim.hidden = false; } };
+    this.root.querySelector('[data-a=togglecams]').addEventListener('click', () => open(left));
+    this.root.querySelector('[data-a=togglefilters]').addEventListener('click', () => open(right));
+    scrim.addEventListener('click', close);
+    this._closeEventPanels = close;
   }
 
   async _init() {
@@ -116,7 +133,13 @@ export class EventsView {
         <button class="btn sm" data-a="selectall" style="width:100%;justify-content:center"></button>
         <div class="cam-list"></div>
       </aside>
-      <main class="events-main"><div class="events-results"></div></main>
+      <main class="events-main">
+        <div class="events-toolbar">
+          <button class="btn sm" data-a="togglecams">${icon('video')} Cameras (${this.selectedCams.size})</button>
+          <button class="btn sm" data-a="togglefilters">${icon('layout')} Filters</button>
+        </div>
+        <div class="events-results"></div>
+      </main>
       <aside class="pb-side pb-side-right">
         <h3>Filters</h3>
         <div class="field"><label for="ev-kind">Event type</label>
@@ -134,17 +157,19 @@ export class EventsView {
           <label for="ev-thumbs">Show thumbnails</label>
         </div>
       </aside>
+      <div class="pb-panel-scrim" hidden></div>
     </div>`;
     this.res = this.root.querySelector('.events-results');
+    this._bindPanelToggles();
     this._renderCamList();
     this.root.querySelector('#ev-kind').addEventListener('change', (e) => { this.kind = e.target.value; this.search(); });
     this.root.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
       this.preset = b.dataset.preset;
       this.root.querySelectorAll('[data-preset]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       this.root.querySelector('#ev-custom').hidden = this.preset !== 'custom';
-      if (this.preset !== 'custom') this.search();
+      if (this.preset !== 'custom') { this.search(); this._closeEventPanels?.(); }
     }));
-    this.root.querySelector('[data-a=search]').addEventListener('click', () => this.search());
+    this.root.querySelector('[data-a=search]').addEventListener('click', () => { this.search(); this._closeEventPanels?.(); });
     this.root.querySelector('#ev-thumbs').addEventListener('change', (e) => {
       this.showThumbs = e.target.checked;
       try { localStorage.setItem('sentinel.eventsThumbs', this.showThumbs ? '1' : '0'); } catch { /* private mode */ }

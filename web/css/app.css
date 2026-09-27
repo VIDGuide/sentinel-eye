@@ -568,6 +568,11 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
   .pb-side h3 { display: none; }
 }
 .pb-panel-toggle { display: none; }
+/* Unconditional (not inside either view's media query): both drawer patterns below share this one scrim,
+   and its own [hidden] attribute already keeps it invisible until JS un-hides it — which JS only does from
+   a toggle button that's itself only visible/clickable at its view's own breakpoint, so this needs no width
+   gating of its own. */
+.pb-panel-scrim { position: absolute; inset: 0; z-index: 24; background: var(--scrim); }
 /* Below 760px there's no longer room to show the camera list and the calendar in-flow alongside the video
    without crushing it — found directly, not assumed: stacking all three in a column left the video a thin
    sliver with the transport controls overlapping it, and the calendar's own natural height (a full month
@@ -577,9 +582,10 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
    dismissed via the scrim or the toggle again — so windowed mobile gets the video, transport and timeline
    at full width by default, with cameras/date-jump one tap away instead of permanently competing for space. */
 @media (max-width: 760px) {
-  /* Scoped to .pb (Playback) specifically — Events reuses the same .pb-side/.cam-list classes for its own,
-     always-inline camera/filter panels (see its own comment), which have no show/hide toggle wired up and
-     would simply vanish off-screen if this matched them too (found directly: it did, before this scoping). */
+  /* Scoped to .pb (Playback) specifically, at Playback's own breakpoint — Events reuses the same .pb-side/
+     .cam-list classes and gets the identical drawer treatment (see the events-view block below), but at its
+     own, different breakpoint (820px) via its own toolbar buttons rather than Playback's topline ones, so
+     it needs its own copy of these rules rather than sharing this one media query. */
   .pb .pb-panel-toggle { display: inline-flex; }
   .pb .pb-side { position: absolute; top: 0; bottom: 0; z-index: 25; width: 260px; max-width: 80vw; background: rgba(8, 11, 16, .97);
     backdrop-filter: blur(8px); box-shadow: 0 0 28px var(--ov-scrim-strong); transition: transform .22s ease; overflow-y: auto;
@@ -589,7 +595,6 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
   .pb .pb-side-right { right: 0; transform: translateX(100%); }
   .pb .pb-side.show { transform: translateX(0); }
   .pb .cam-list { flex-direction: column; flex-wrap: nowrap; }
-  .pb-panel-scrim { position: absolute; inset: 0; z-index: 24; background: var(--scrim); }
 }
 
 /* events (search) — cameras on the left, results in the middle, filters on the right: the same .pb-side/
@@ -638,22 +643,26 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .evp-stage canvas { max-width: 100%; max-height: 100%; display: block; }
 .evp-veil { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: rgba(5, 7, 10, .82); color: #cbd5e1; text-align: center; padding: 16px; }
 .evp-bottom { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.events-toolbar { display: none; gap: 8px; margin-bottom: 14px; }
 @media (max-width: 820px) {
-  /* Stacking the camera picker, results and filters in DOM order (that order: picker, results, THEN the
-     filters that produced them) put the filters' "Apply filters" button below the fold with no way to
-     reach it — .events-view was `overflow: hidden` with no scroll of its own, so once the stacked content
-     (checkbox list + a full results page + the filter fields) exceeded the viewport height, everything past
-     that point was simply unreachable, not just off-screen (confirmed directly: its own scrollHeight ran
-     ~185px past clientHeight). Reordered visually (filters right after the camera picker, results last —
-     see, then apply, then browse) and given the view an actual scrollbar so nothing is ever cut off again. */
-  .events-view { flex-direction: column; overflow-y: auto; overflow-x: hidden; }
-  /* Overrides the 980px rule's fixed 180px .pb-side width — that's sized for sitting *beside* the video in
-     Playback's inline tablet layout; stacked full-width here instead (a single column, not two side panels
-     either side of anything), 180px just wasted most of the screen for no reason. */
-  .events-view .pb-side { width: auto; max-width: none; }
-  .events-view .pb-side-left { order: 1; }
-  .events-view .pb-side-right { order: 2; }
-  .events-view .events-main { order: 3; flex: none; overflow: visible; }
+  /* Same off-canvas drawer pattern as Playback (below its own, narrower breakpoint) rather than stacking
+     the camera picker, results and filters in one column: an earlier version of this rule did that, but
+     DOM order (picker, results, THEN the filters that produced them) put "Apply filters" below the fold
+     with .events-view's own `overflow: hidden` giving no way to reach it at all (confirmed directly: its
+     scrollHeight ran ~185px past clientHeight) — reordering fixed reachability but still gave the results
+     list less width than it could have. Drawers (opened via .events-toolbar's two buttons, only shown at
+     this width) keep results full-width by default, matching Playback's own reasoning exactly. */
+  .events-view { position: relative; overflow: hidden; }
+  .events-toolbar { display: flex; }
+  .events-view .pb-side { position: absolute; top: 0; bottom: 0; z-index: 25; width: 260px; max-width: 80vw; background: rgba(8, 11, 16, .97);
+    backdrop-filter: blur(8px); box-shadow: 0 0 28px var(--ov-scrim-strong); transition: transform .22s ease; overflow-y: auto;
+    flex-direction: column; flex-wrap: nowrap; max-height: none; border: 0 !important; }
+  .events-view .pb-side h3 { display: block; }
+  .events-view .pb-side-left { left: 0; transform: translateX(-100%); }
+  .events-view .pb-side-right { right: 0; transform: translateX(100%); }
+  .events-view .pb-side.show { transform: translateX(0); }
+  .events-view .cam-list { flex-direction: column; flex-wrap: nowrap; }
+  .events-view .events-main { flex: 1; min-width: 0; overflow-y: auto; }
   .events-custom { flex-direction: row; border-top: 0; }
   .ev-row { flex-wrap: wrap; }
 }
