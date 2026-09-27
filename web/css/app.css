@@ -192,12 +192,33 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
    same family of at-a-glance badges, icon-only + accent-colored so it's distinct at this size. */
 .tag.fx { display: inline-flex; align-items: center; padding: 2px 5px; color: var(--accent); }
 .tag.fx .i { width: 12px; height: 12px; }
-.tile-actions { position: absolute; top: 6px; right: 6px; z-index: 5; display: flex; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .15s; }   /* hidden buttons must not swallow clicks */
+/* left AND right (not just right) gives this an actual defined width to expand within — needed so the
+   group below can size itself against a real number instead of an auto/shrink-to-fit container, which had
+   no ceiling of its own and let the expanded group's content spill past the tile's own left edge on
+   anything narrower than ~340px (found directly: it rendered over the *next* tile, not clipped by this
+   one's own overflow:hidden, since getBoundingClientRect for an absolutely-positioned child reports its
+   laid-out position regardless of who ends up visually clipping it — the fix is giving the layout itself a
+   real ceiling, not just hoping overflow catches it). justify-content keeps the toggle pinned to the right
+   edge whether collapsed or expanded, same as before. */
+.tile-actions { position: absolute; top: 6px; left: 6px; right: 6px; z-index: 5; display: flex; align-items: center; justify-content: flex-end; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .15s; }   /* hidden buttons must not swallow clicks */
 .tile:hover .tile-actions, .tile:focus-within .tile-actions { opacity: 1; pointer-events: auto; }
 @media (hover: none) { .tile-actions { opacity: 1; pointer-events: auto; } }
-.tile-actions button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; border: 0; background: rgba(15, 20, 28, .82); color: #fff; backdrop-filter: blur(6px); }
+.tile-actions button { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; border: 0; background: rgba(15, 20, 28, .82); color: #fff; backdrop-filter: blur(6px); flex: none; }
 .tile-actions button:hover { background: var(--accent); color: var(--accent-ink); }
 .tile-actions button.txt { width: auto; padding: 0 8px; font-size: 11.5px; font-weight: 700; }
+/* Collapsed by default (see tile.js's own comment on why: a grid's worth of tiles each showing all 7
+   action buttons at once, permanently on touch, reads as cluttered) — the toggle sits at the tile's fixed
+   top-right corner (last in flex order, so its own position never moves), the group expands to its left. */
+.tile-actions-group { display: flex; align-items: center; gap: 4px; max-width: 0; overflow: hidden; opacity: 0; min-width: 0; transition: max-width .2s ease, opacity .15s ease; }
+/* 100%, not a fixed pixel count — .tile-actions now spans the tile's real available width (left+right, not
+   just right — see its own comment), so this resolves against an actual number: whatever's left after the
+   toggle's own fixed width, on *this* tile, not a guess sized for the widest tile in the grid. A narrow
+   tile still can't show all 8 buttons at once, but they now clip within their own tile's own bounds instead
+   of spilling across the tile boundary into whatever's next to it. */
+.tile-actions.expanded .tile-actions-group { max-width: 100%; opacity: 1; }
+.tile-actions-toggle svg { transition: transform .2s ease; }
+.tile-actions.expanded .tile-actions-toggle svg { transform: rotate(180deg); }
+.tile-actions.expanded .tile-actions-toggle { background: var(--accent); color: var(--accent-ink); }
 .tile .hit { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
 .editing .tile { cursor: grab; outline: 2px dashed var(--line-2); outline-offset: -2px; }
 .editing .tile .hit { cursor: grab; }
