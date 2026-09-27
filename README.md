@@ -14,8 +14,8 @@ cameras ever leaves your network.
 
 ![Sentinel Eye's live grid — several camera tiles in a 1+7 layout, dark themed](docs/screenshots/live-grid.png)
 
-*(Screenshot uses generic placeholder scenes and camera names, not real footage — see [Beyond your
-computer](#beyond-your-computer) for what it looks like installed on a phone or a TV.)*
+*(Screenshot uses generic placeholder scenes and camera names, not real footage — see [Installing as an
+app](#installing-as-an-app) for what it looks like installed on a phone or a TV.)*
 
 ## Why
 
@@ -43,8 +43,8 @@ a network you already trust, not to be exposed publicly.
 - **TV mode** (Settings → Display): a bigger, remote-friendly layout for watching from a smart TV's browser
   or just a bigger screen — larger text, arrow-key camera selection, SD streams by default to keep a weaker
   TV browser smooth (switch to HD any time from the same quality control). Per-browser, so turning it on for
-  the TV doesn't change anything on your phone or laptop. More on this in [Beyond your
-  computer](#beyond-your-computer).
+  the TV doesn't change anything on your phone or laptop. More on this in [Installing as an
+  app](#installing-as-an-app).
 
 ### Playback and review
 - Review up to four cameras at once, frame-locked — the recorder's own hard limit on simultaneous playback
@@ -228,36 +228,32 @@ Stops the web server, go2rtc, and any decrypt-relay/ffmpeg processes it started.
 The frontend is plain JavaScript with no build step, so a UI change just needs a browser refresh; only a
 backend (Python) change needs `./stop.sh && ./run.sh`.
 
-## Beyond your computer
+## Installing as an app
 
-You set it up the way most self-hosted tools go: clone the repo, `./run.sh`, open `http://127.0.0.1:8007`
-in a browser on the same Mac it's running on. That's the whole story for a while — a live wall of cameras,
-playback, exports, all sitting on your desktop.
+Sentinel Eye installs as a standalone app on iPhone, iPad, and Mac — no App Store, just the browser's own
+install mechanism:
 
-Then you want to check on things from the couch, or from your phone in another room, and per [Watching from
-your phone](#watching-from-your-phone-or-another-device-on-your-network) above, `http://<mac's-lan-ip>:8007`
-already works there too — but it's still just a browser tab you have to remember the address for. So you add
-it to your Home Screen: the share icon → **Add to Home Screen** on iPhone or iPad, or the install button
-(or **Add to Dock**) in Safari, Chrome, or Edge on the Mac itself. It opens full-screen with its own icon, no
-address bar, no browser chrome — indistinguishable from any other installed app, and it still talks straight
-to your own Mac over your own network, nothing routed anywhere else.
+- **iPhone / iPad (Safari):** Share → **Add to Home Screen**.
+- **Mac (Safari, Chrome, or Edge):** the browser's install button, or Safari's **Add to Dock**.
+
+It opens full-screen with its own icon and no address bar, and still talks directly to your own Mac over
+your network — installing it changes nothing about how or where data moves.
 
 <p align="center"><img src="docs/screenshots/mobile-live.png" width="360" alt="Sentinel Eye installed on a phone, showing the live grid in a stacked mobile layout"></p>
 
-Some months later you're setting up a TV in the living room, or there's an old Android box in the garage with
-nothing but a browser on it, and you open the dashboard there out of curiosity. It works — but almost every
-"smart TV browser" you're likely to run into (Samsung's Tizen browser being the most common) is a fraction
-as capable as the phone or laptop you're used to, and a wall of simultaneous HD streams can visibly lag.
-That's what **TV mode** (Settings → Display) is for: bigger text and camera names for couch distance,
-arrow-key camera selection for a remote's D-pad instead of a mouse, and SD streams by default to keep a weak
-TV browser smooth — switch back to HD any time from the same quality control if your TV's browser can handle
-it. It's a per-browser setting, so turning it on for the TV doesn't touch what your phone or laptop show.
+### TV mode
 
-![Sentinel Eye in TV mode — the same live grid with larger text and controls for viewing from a couch](docs/screenshots/tv-mode.png)
+Settings → Display → **TV mode** switches to a bigger, remote-friendly layout for watching on a smart TV's
+browser (or just a bigger screen): larger text and camera names, arrow-key camera selection instead of a
+mouse, and SD streams by default — most smart TV browsers (this was built and tested against Samsung's
+Tizen browser) are far less capable than a phone or laptop and can lag under several simultaneous HD
+streams. HD is still one click away from the same quality control. It's a per-browser setting: turning it
+on for the TV doesn't change anything on your phone or laptop.
 
-Experience on an actual TV browser varies a lot by hardware and how current its browser is — this was built
-and tested primarily against a Samsung Tizen TV browser. Treat any given smart TV as "try it and see," not a
-guaranteed target.
+![Sentinel Eye in TV mode — the same live grid with larger text and controls for viewing from a distance](docs/screenshots/tv-mode.png)
+
+Results on an actual TV browser vary with its hardware and how current the browser is — treat any given
+smart TV as something to test, not a guaranteed target.
 
 ## Testing
 
