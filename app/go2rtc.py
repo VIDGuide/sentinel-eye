@@ -2,7 +2,7 @@
 import json, os, subprocess, sys, threading, time, urllib.parse, urllib.request
 from pathlib import Path
 
-from settings import DATA, ROOT, SETTINGS_FILE, Settings
+from settings import DATA, ROOT, SETTINGS_FILE, Settings, channel_zero_channel
 
 API_PORT = int(os.environ.get("SENTINEL_API_PORT", 1984))
 RTSP_PORT = int(os.environ.get("SENTINEL_RTSP_PORT", 8554))
@@ -34,7 +34,11 @@ def desired_streams(s: Settings) -> dict:
     out = {}
     if not s.connection.host:
         return out
-    for ch in s.channels:
+    channels = list(s.channels)
+    zero = channel_zero_channel(s)
+    if zero:
+        channels = [zero] + channels   # first to connect, matching its "always first tile" spot in the UI
+    for ch in channels:
         if not ch.enabled:
             continue
         n = stream_names(ch.id)

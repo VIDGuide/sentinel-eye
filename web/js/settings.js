@@ -14,6 +14,7 @@ const TABS = [
 ];
 const ENHANCE_MODES = [['auto', 'Auto'], ['face', 'Face priority'], ['plate', 'Plate & text'], ['general', 'General']];
 const HOST_RE = /^[A-Za-z0-9._-]+$/;
+const DEFAULT_CHANNEL_ZERO_PATH = '/Streaming/Channels/1';   // mirrors app/settings.py's DEFAULT_CHANNEL_ZERO_PATH
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const fpsText = (v) => (v === 'auto' || v == null ? '' : String(v));
 
@@ -47,6 +48,7 @@ export class SettingsView {
     if (!c.password && !this.base.connection.has_password) e['connection.password'] = 'Enter the password.';
     if (c.encrypted && !c.key && !this.base.connection.has_key) e['connection.key'] = 'Enter the verification code, or turn encryption off.';
     if (c.key && new TextEncoder().encode(c.key).length > 16) e['connection.key'] = 'At most 16 characters.';
+    if (c.channel_zero_path && !c.channel_zero_path.startsWith('/')) e['connection.channel_zero_path'] = 'Must start with /';
     const seen = new Map();
     for (const ch of this.draft.channels) {
       if (!Number.isInteger(+ch.channel) || ch.channel < 1 || ch.channel > 999) e[`ch.${ch.id}.channel`] = '1–999';
@@ -105,6 +107,16 @@ export class SettingsView {
         <div class="input-row"><input id="f-key" type="password" data-b="connection.key" value="${esc(c.key)}" ${c.encrypted ? '' : 'disabled'} placeholder="${c.encrypted ? (b.has_key ? '•••••••• (saved, leave blank to keep)' : 'The code set on the recorder') : 'Turn encryption on to enter the code'}" autocomplete="off" spellcheck="false">
           <button class="btn icon" type="button" data-reveal="f-key" ${c.encrypted ? '' : 'disabled'} title="Show / hide" aria-label="Show or hide the code">${icon('eye')}</button></div>
         ${this.fieldErr('connection.key')}<div class="hint">Up to 16 characters. It is stored only on this computer.</div></div></div></section>
+    <section class="card"><h3>Channel-zero (recorder overview)</h3>
+      <p class="sub">Some Hikvision recorders also serve a single, low-bandwidth stream showing the recorder's own multi-camera layout — the same picture a monitor plugged straight into it would show. When turned on, it's always the first tile in the live view, and TV mode (Settings → Display) uses it as its default full-screen view.</p>
+      <div class="toggle-row"><label class="switch"><input type="checkbox" data-b="connection.channel_zero" data-t="bool" ${c.channel_zero ? 'checked' : ''} aria-label="Channel-zero"><span></span></label>
+        <span><b>${c.channel_zero ? 'On' : 'Off'}</b></span></div>
+      <div class="form" style="margin-top:14px"><div class="field wide"><label for="f-c0path">Stream path (optional)</label>
+        <input id="f-c0path" type="text" data-b="connection.channel_zero_path" value="${esc(c.channel_zero_path)}" ${c.channel_zero ? '' : 'disabled'} placeholder="/Streaming/Channels/1" autocomplete="off" spellcheck="false">
+        ${this.fieldErr('connection.channel_zero_path')}<div class="hint">Leave blank for the default (confirmed working against an 8-channel NVR — not every recorder model uses the same path, hence this override). Verify with the button below.</div></div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <button class="btn" id="t-c0run" ${!c.channel_zero || this.busy.has('c0') ? 'disabled' : ''}>${this.busy.has('c0') ? '<span class="spin sm"></span> Testing…' : 'Test channel-zero'}</button></div>
+      ${this.c0Test ? this.resultHtml(this.c0Test) : ''}</section>
     <section class="card"><h3>Test connection</h3><p class="sub">Connects with the values above (even before saving), reads a few seconds of video, and tells you what it found.</p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <select id="t-ch" style="width:auto;min-width:170px" aria-label="Channel to test">${this.draft.channels.map((x) => `<option value="${x.id}" ${first && x.id === first.id ? 'selected' : ''}>${esc(x.name || 'Channel ' + x.channel)} (ch ${x.channel})</option>`).join('') || '<option value="">Channel 1</option>'}</select>
@@ -176,7 +188,7 @@ export class SettingsView {
       <div class="field wide"><span class="lbl">Fit</span><div class="seg" role="group" aria-label="Fit"><button data-o="fit:contain" aria-pressed="${d.fit === 'contain'}">Fit</button><button data-o="fit:cover" aria-pressed="${d.fit === 'cover'}">Fill tile</button></div>
         <div class="hint">Applies to both the live grid/large view and Playback. "Fit" never crops (letterboxed if the shapes don't match); "Fill tile" crops to fill the space edge-to-edge.</div></div>
       <div class="field"><span class="lbl">Theme</span><div class="seg" role="group" aria-label="Theme"><button data-o="theme:auto" aria-pressed="${d.theme === 'auto'}">Auto</button><button data-o="theme:dark" aria-pressed="${d.theme === 'dark'}">Dark</button><button data-o="theme:light" aria-pressed="${d.theme === 'light'}">Light</button></div></div></div></section>
-    <section class="card"><h3>TV mode</h3><p class="sub">A bigger, couch-distance layout with arrow-key camera selection — for a TV's browser, or just a bigger screen. SD by default (switch to HD any time below); applies to this browser only, not your other devices.</p>
+    <section class="card"><h3>TV mode</h3><p class="sub">A bigger, couch-distance layout with arrow-key camera selection — for a TV's browser, or just a bigger screen. SD by default (switch to HD any time below); applies to this browser only, not your other devices. Defaults to the recorder's Channel-zero overview (above) full screen when that's turned on.</p>
       <div class="toggle-row"><label class="switch"><input type="checkbox" id="f-tv" ${this.ctx.tvMode() ? 'checked' : ''} aria-label="TV mode"><span></span></label>
         <span><b>${this.ctx.tvMode() ? 'On' : 'Off'}</b></span></div></section>
     <section class="card"><h3>Layout &amp; rotation</h3>
@@ -269,8 +281,9 @@ export class SettingsView {
       el.addEventListener(ev, () => {
         const path = el.dataset.b;
         this.setPath(path, this.convert(el));
-        if (path === 'connection.encrypted' || /^ch\.[^.]+\.enabled$/.test(path)) { this.render(); }
+        if (path === 'connection.encrypted' || path === 'connection.channel_zero' || /^ch\.[^.]+\.enabled$/.test(path)) { this.render(); }
         if (path === 'connection.host' || path.startsWith('connection.')) this.conn = null;
+        if (path.startsWith('connection.channel_zero')) this.c0Test = null;
         if (path === 'display.theme') this.ctx.applyTheme(this.draft.display.theme);
         if (el.type === 'range') { const out = el.parentElement.querySelector('.range-val'); if (out) out.textContent = Number(el.value).toFixed(+el.step < 1 ? 2 : 0) + (out.dataset.unit || ''); }
         this.refresh();
@@ -282,7 +295,7 @@ export class SettingsView {
       if (k === 'theme') this.ctx.applyTheme(v);
       this.render(); this.refresh();
     }));
-    p.querySelector('#f-tv')?.addEventListener('change', (e) => { this.ctx.setTvMode(e.target.checked); this.render(); });
+    p.querySelector('#f-tv')?.addEventListener('change', (e) => this._onTvModeToggle(e.target.checked));
     p.querySelectorAll('[data-reveal]').forEach((b) => b.addEventListener('click', () => {
       const i = p.querySelector('#' + b.dataset.reveal);
       i.type = i.type === 'password' ? 'text' : 'password';
@@ -290,6 +303,7 @@ export class SettingsView {
     }));
     p.querySelectorAll('[data-tk]').forEach((b) => b.addEventListener('click', () => { this.tk = b.dataset.tk; this.conn = null; this.render(); }));
     p.querySelector('#t-run')?.addEventListener('click', () => this.runConnTest());
+    p.querySelector('#t-c0run')?.addEventListener('click', () => this.runChan0Test());
     p.querySelector('#add-ch')?.addEventListener('click', () => this.addChannel());
     p.querySelector('#detect')?.addEventListener('click', () => this.detect());
     p.querySelector('#add-found')?.addEventListener('click', () => this.addFound());
@@ -338,6 +352,39 @@ export class SettingsView {
     } catch (e) { toast(e.message, 'bad', 7000); }
     this.saving = false;
     this.render();
+  }
+
+  /** TV mode is a local, instant toggle (main.js's ctx.setTvMode) with no save bar of its own, but turning
+   * it on has real, synced side effects the operator should see coming: it enables Channel-zero for every
+   * device watching this recorder (not just this one), and jumps straight into it, full screen. Turning it
+   * back off is the plain, instant, no-questions-asked toggle it always was. */
+  async _onTvModeToggle(checked) {
+    if (!checked) { this.ctx.setTvMode(false); this.render(); return; }
+    // The checkbox is already visually checked (native behaviour) the instant this fires, but nothing is
+    // actually on yet pending the confirm below — found directly: its "Off"/"On" label sat stale and wrong
+    // for as long as the dialog stayed open, since that text only updates on the render() calls below.
+    const label = this.pane.querySelector('#f-tv')?.closest('.toggle-row')?.querySelector('b');
+    if (label) label.textContent = 'On';
+    const needsChannelZero = !this.base.connection.channel_zero;
+    const go = await confirmDialog({
+      title: 'Switch to TV mode?',
+      body: needsChannelZero
+        ? "Bigger text and arrow-key camera selection for watching from a distance. This also turns on the recorder's Channel-zero overview stream — for every device watching this recorder, not just this one — and takes you straight to it, full screen."
+        : "Bigger text and arrow-key camera selection for watching from a distance — takes you straight to the recorder's Channel-zero overview stream, full screen.",
+      ok: 'Go to TV mode',
+    });
+    if (!go) { this.render(); return; }   // the checkbox is already visually checked (native behaviour); re-render to drop it back
+    if (needsChannelZero) {
+      const draft = clone(this.base);
+      draft.connection.channel_zero = true;
+      try {
+        const saved = await this.ctx.saveAll(draft);
+        this.base = clone(saved); this.draft = clone(saved);
+      } catch (e) { toast(e.message, 'bad', 7000); this.render(); return; }
+    }
+    this.ctx.setTvMode(true);
+    this.ctx.armTvFullscreen?.();
+    this.ctx.go('#/live');
   }
 
   addChannel(channel, name) {
@@ -390,6 +437,20 @@ export class SettingsView {
       this.conn = await api.test(this.draft.connection, ch ? ch.channel : 1, this.tk === 'main' ? 'main' : 'sub', ch ? (this.tk === 'main' ? ch.main_path : ch.sub_path) : '');
     } catch (e) { this.conn = { ok: false, message: e.message }; }
     this.busy.delete('conn'); this.render();
+  }
+
+  async runChan0Test() {
+    const c = this.draft.connection;
+    this.busy.add('c0'); this.render();
+    try {
+      // api.test's generic path fallback (channel/kind → "{channel}01"/"{channel}02") isn't the channel-
+      // zero one — that only lives in app/settings.py's channel_zero_channel, used once this actually
+      // saves — so an empty override has to be resolved to the real default here explicitly, or this
+      // button tests the wrong path entirely (found directly: it silently probed /Streaming/Channels/002,
+      // a 400, instead of the recorder's real channel-zero path).
+      this.c0Test = await api.test(c, 0, 'sub', c.channel_zero_path || DEFAULT_CHANNEL_ZERO_PATH);
+    } catch (e) { this.c0Test = { ok: false, message: e.message }; }
+    this.busy.delete('c0'); this.render();
   }
 
   async runRowTest(id) {

@@ -47,11 +47,20 @@ const TV_QUALITY_KEY = 'sentinel-eye-tv-quality';
 function getTvQuality() { try { const v = localStorage.getItem(TV_QUALITY_KEY); return v === 'main' || v === 'auto' ? v : 'sub'; } catch { return 'sub'; } }
 function setTvQuality(v) { try { localStorage.setItem(TV_QUALITY_KEY, v); } catch { /* private mode */ } }
 
+// One-shot signal from Settings' "go to TV mode now" confirm flow to the LiveView it's about to build:
+// auto-request full screen this one time. A plain in-memory flag, not localStorage — it must NOT survive
+// past the very next LiveView it reaches (a later plain visit/reload must never auto-fullscreen unasked).
+let pendingTvFullscreen = false;
+const armTvFullscreen = () => { pendingTvFullscreen = true; };
+const consumeTvFullscreen = () => { const v = pendingTvFullscreen; pendingTvFullscreen = false; return v; };
+
 const ctx = {
   settings: () => state.settings,
   applyTheme,
   tvMode: getTvMode,
   setTvMode,
+  armTvFullscreen,
+  consumeTvFullscreen,
   tvQuality: getTvQuality,
   setTvQuality,
   go: (h) => { location.hash = h; },

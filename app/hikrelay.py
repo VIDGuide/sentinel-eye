@@ -586,6 +586,12 @@ def main():
     a = ap.parse_args()
     s = load_settings(a.settings)
     ch = next((c for c in s["channels"] if c["id"] == a.channel_id), None)
+    # Channel-zero (app/settings.py's channel_zero_channel) isn't a real entry in s["channels"] — same
+    # reasoning as there, just re-expressed as a plain dict since this CLI works off raw settings JSON
+    # rather than the pydantic model.
+    if ch is None and a.channel_id == "chan0" and s.get("connection", {}).get("channel_zero"):
+        path = s["connection"].get("channel_zero_path") or "/Streaming/Channels/1"
+        ch = {"channel": 1, "sub_path": path, "main_path": path}
     if ch is None:
         sys.exit(f"unknown channel {a.channel_id}")
     conn = conn_of(s)

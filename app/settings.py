@@ -21,6 +21,23 @@ class Connection(BaseModel):
     password: str = ""
     encrypted: bool = False
     key: str = ""
+    # Channel-zero: some Hikvision recorders also serve a single low-bandwidth stream showing the
+    # recorder's own multi-camera layout — the same picture a monitor plugged straight into it would show
+    # — separate from any individual camera's own main/sub stream. Verified directly against a real
+    # 8-channel NVR: /Streaming/Channels/1 returned a distinct 704x576 H.264 stream (neither channel 1's
+    # main [1920x1080 H.265] nor its sub [960x480 H.264]), and /Streaming/Channels/2 (a would-be second
+    # stream for it) 400'd — it's genuinely one single stream, not a main/sub pair like a real channel.
+    # Not every recorder model/firmware supports this or uses this exact path, hence the override below.
+    channel_zero: bool = False
+    channel_zero_path: str = ""   # RTSP path override; empty = DEFAULT_CHANNEL_ZERO_PATH
+
+    @field_validator("channel_zero_path")
+    @classmethod
+    def _czp(cls, v):
+        v = v.strip()
+        if v and not v.startswith("/"):
+            raise ValueError("A stream path starts with /")
+        return v
 
     @field_validator("host")
     @classmethod
@@ -116,6 +133,24 @@ class Settings(BaseModel):
         if len(set(ids)) != len(ids):
             raise ValueError("Duplicate channel id")
         return v
+
+
+CHANNEL_ZERO_ID = "chan0"
+DEFAULT_CHANNEL_ZERO_PATH = "/Streaming/Channels/1"
+
+
+def channel_zero_channel(s: Settings) -> Optional[Channel]:
+    """A synthetic Channel for the recorder's channel-zero overview stream (see Connection.channel_zero's
+    own comment) — built on the fly, not a real entry in s.channels, so it never touches the Channels tab's
+    list, order, or count. channel=1 here is a harmless placeholder: sub_path/main_path are always set
+    explicitly below, so source_for()'s "override or {channel}01/02" fallback template never actually reads
+    the channel number. Both point at the same single path since the recorder only ever serves the one
+    stream, not a main/sub pair — asking for a second one 400s (verified directly)."""
+    if not s.connection.channel_zero:
+        return None
+    path = s.connection.channel_zero_path or DEFAULT_CHANNEL_ZERO_PATH
+    return Channel(id=CHANNEL_ZERO_ID, channel=1, name="Channel 0", enabled=True,
+                   sub_path=path, main_path=path, sub_fps="auto", main_fps="auto")
 
 
 def _migrate_env() -> Settings:
