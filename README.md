@@ -1,12 +1,21 @@
+<img src="web/icons/icon-512.png" width="88" height="88" alt="Sentinel Eye" align="left" style="margin-right:16px">
+
 # Sentinel Eye
 
 A self-hosted web dashboard for Hikvision recorders and cameras — live viewing, DVR playback and review,
 event search, exports, and real-time AI-assisted enhancement, all running on your own machine.
 
+<br clear="left">
+
 No Hikvision app, no plugin, and no cloud account. It reads the recorder's standard RTSP streams over your
 LAN and, when the recorder's proprietary "Stream Encryption" is turned on, decrypts them itself (the scheme
 was reverse-engineered from scratch — see `tools/NOTES.md`). Nothing about how you watch or review your
 cameras ever leaves your network.
+
+![Sentinel Eye's live grid — several camera tiles in a 1+7 layout, dark themed](docs/screenshots/live-grid.png)
+
+*(Screenshot uses generic placeholder scenes and camera names, not real footage — see [Beyond your
+computer](#beyond-your-computer) for what it looks like installed on a phone or a TV.)*
 
 ## Why
 
@@ -31,6 +40,11 @@ a network you already trust, not to be exposed publicly.
   on-screen controls — without ever pausing the picture.
 - Instant replay: jump back up to a configurable window on any live camera without leaving the grid.
 - Live event badges (motion, line-crossing, tamper, video loss) painted directly onto the relevant tile.
+- **TV mode** (Settings → Display): a bigger, remote-friendly layout for watching from a smart TV's browser
+  or just a bigger screen — larger text, arrow-key camera selection, SD streams by default to keep a weaker
+  TV browser smooth (switch to HD any time from the same quality control). Per-browser, so turning it on for
+  the TV doesn't change anything on your phone or laptop. More on this in [Beyond your
+  computer](#beyond-your-computer).
 
 ### Playback and review
 - Review up to four cameras at once, frame-locked — the recorder's own hard limit on simultaneous playback
@@ -213,6 +227,37 @@ Stops the web server, go2rtc, and any decrypt-relay/ffmpeg processes it started.
 
 The frontend is plain JavaScript with no build step, so a UI change just needs a browser refresh; only a
 backend (Python) change needs `./stop.sh && ./run.sh`.
+
+## Beyond your computer
+
+You set it up the way most self-hosted tools go: clone the repo, `./run.sh`, open `http://127.0.0.1:8007`
+in a browser on the same Mac it's running on. That's the whole story for a while — a live wall of cameras,
+playback, exports, all sitting on your desktop.
+
+Then you want to check on things from the couch, or from your phone in another room, and per [Watching from
+your phone](#watching-from-your-phone-or-another-device-on-your-network) above, `http://<mac's-lan-ip>:8007`
+already works there too — but it's still just a browser tab you have to remember the address for. So you add
+it to your Home Screen: the share icon → **Add to Home Screen** on iPhone or iPad, or the install button
+(or **Add to Dock**) in Safari, Chrome, or Edge on the Mac itself. It opens full-screen with its own icon, no
+address bar, no browser chrome — indistinguishable from any other installed app, and it still talks straight
+to your own Mac over your own network, nothing routed anywhere else.
+
+<p align="center"><img src="docs/screenshots/mobile-live.png" width="360" alt="Sentinel Eye installed on a phone, showing the live grid in a stacked mobile layout"></p>
+
+Some months later you're setting up a TV in the living room, or there's an old Android box in the garage with
+nothing but a browser on it, and you open the dashboard there out of curiosity. It works — but almost every
+"smart TV browser" you're likely to run into (Samsung's Tizen browser being the most common) is a fraction
+as capable as the phone or laptop you're used to, and a wall of simultaneous HD streams can visibly lag.
+That's what **TV mode** (Settings → Display) is for: bigger text and camera names for couch distance,
+arrow-key camera selection for a remote's D-pad instead of a mouse, and SD streams by default to keep a weak
+TV browser smooth — switch back to HD any time from the same quality control if your TV's browser can handle
+it. It's a per-browser setting, so turning it on for the TV doesn't touch what your phone or laptop show.
+
+![Sentinel Eye in TV mode — the same live grid with larger text and controls for viewing from a couch](docs/screenshots/tv-mode.png)
+
+Experience on an actual TV browser varies a lot by hardware and how current its browser is — this was built
+and tested primarily against a Samsung Tizen TV browser. Treat any given smart TV as "try it and see," not a
+guaranteed target.
 
 ## Testing
 
