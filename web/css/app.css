@@ -850,7 +850,18 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
    heading underneath it — a real hierarchy break, not a deliberate TV treatment of those screens. */
 html.tv-mode { font-size: 19px; }   /* basis for the rem sizes below; nothing outside .liveview uses rem, so shared chrome elsewhere is untouched */
 html.tv-mode .subbar { min-height: 60px; gap: 10px; padding: 10px 14px; }
-html.tv-mode .subbar .btn, html.tv-mode .subbar .seg button, html.tv-mode .subbar .pill { font-size: 1.05rem; padding: 10px 16px; }
+/* .btn and .pill both come with their own fixed height (34px / 24px) from their base rules — padding alone
+   doesn't grow a fixed-height box, it just eats into its content area, so every one of these needs its
+   height overridden explicitly alongside the bigger padding, not just the padding. .btn/.pill already
+   center their content via flex (display:inline-flex;align-items:center in their base rules), so once the
+   height is actually bigger there's nothing else to fix for them. */
+html.tv-mode .subbar .btn, html.tv-mode .subbar .pill { font-size: 1.05rem; height: 44px; padding: 0 18px; }
+/* .seg button has NEITHER: no flex (default inline-block), and its centering relies entirely on
+   line-height matching its fixed 28px height — the actual "not aligned, not properly rendered" bug
+   reported live: forcing bigger padding without a matching height left content overflowing a box too
+   short for it, line-height included, with nothing to re-center it once flex isn't there to do that job. */
+html.tv-mode .subbar .seg { padding: 3px; }
+html.tv-mode .subbar .seg button { font-size: 1.05rem; height: 40px; padding: 0 18px; display: flex; align-items: center; justify-content: center; }
 /* .btn.icon (fullscreen, zoom, snapshot, etc.) is a fixed 34px square with zero padding by design (the SVG
    IS the content) — inheriting the text button's padding above put a 34px-border-box button through 16px
    of horizontal padding alone, squeezing its 18px icon into ~2px of content box. Same specificity as the
@@ -865,7 +876,7 @@ html.tv-mode .tile .name { font-size: 1.15rem; }
 html.tv-mode .tile .hit:focus-visible { outline: 4px solid var(--accent); outline-offset: -4px; z-index: 6; }
 html.tv-mode .focus-bar { min-height: 64px; padding: 10px 14px; }
 html.tv-mode .focus-bar h2 { font-size: 1.3rem; }
-html.tv-mode .focus-bar .btn { font-size: 1.05rem; padding: 10px 16px; }
+html.tv-mode .focus-bar .btn { font-size: 1.05rem; height: 44px; padding: 0 18px; }
 html.tv-mode .focus-bar .btn:focus-visible,
 html.tv-mode .nav a:focus-visible,
 html.tv-mode .subbar .btn:focus-visible,
@@ -875,17 +886,21 @@ html.tv-mode a:focus-visible { outline: 4px solid var(--accent); outline-offset:
 html.tv-mode .nav-arrow { width: 56px; height: 56px; }
 
 /* Full screen on the grid itself, in TV mode: hide the subbar entirely — every stream tile is the point of
-   this screen, not the toolbar above it — and leave a single floating "exit full screen" button in its
-   place, positioned over the video and hidden until the cursor/remote moves (live.js's
-   _bindWallFsAutoHide, same idle-hide cycle .focus-bar/.nav-arrow already use in the single-camera focus
-   view). Escape always still works too — that's the browser's own Fullscreen API, not this button. */
+   this screen, not the toolbar above it — and leave a single floating cluster in its place (page
+   prev/next, when there's more than one page, plus an indicator, plus exit), positioned over the video and
+   hidden until the cursor/remote moves (live.js's _bindWallFsAutoHide, same idle-hide cycle
+   .focus-bar/.nav-arrow already use in the single-camera focus view). Escape always still works too —
+   that's the browser's own Fullscreen API, not this cluster. */
 html.tv-mode .liveview:fullscreen .subbar { display: none; }
-.tv-fs-exit { display: none; }
-html.tv-mode .liveview:fullscreen .tv-fs-exit {
-  display: grid; place-items: center; position: absolute; z-index: 8;
+.tv-fs-controls { display: none; }
+html.tv-mode .liveview:fullscreen .tv-fs-controls {
+  display: flex; align-items: center; gap: 4px; position: absolute; z-index: 8;
   top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right));
-  width: 48px; height: 48px; border: 0; border-radius: 10px;
-  background: rgba(15, 20, 28, .7); color: #fff; opacity: 0; pointer-events: none; transition: opacity .22s ease;
+  padding: 6px; border-radius: 14px;
+  background: rgba(15, 20, 28, .7); opacity: 0; pointer-events: none; transition: opacity .22s ease;
 }
-html.tv-mode .liveview:fullscreen .tv-fs-exit.show { opacity: 1; pointer-events: auto; }
-html.tv-mode .liveview:fullscreen .tv-fs-exit:hover { background: var(--accent); color: var(--accent-ink); }
+html.tv-mode .liveview:fullscreen .tv-fs-controls.show { opacity: 1; pointer-events: auto; }
+.tv-fs-btn { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 10px; background: transparent; color: #fff; }
+.tv-fs-btn[hidden] { display: none; }   /* single-page live: prev/next set [hidden] via JS — needs stating explicitly, since the display:grid above outranks the browser's own [hidden] default */
+.tv-fs-btn:hover { background: var(--accent); color: var(--accent-ink); }
+.tv-fs-page { padding: 0 4px; color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }

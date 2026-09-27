@@ -73,12 +73,19 @@ export class LiveView {
       return;
     }
     this.root.innerHTML = `<main class="liveview"><div class="subbar"></div><div class="wall"></div>
-      <button class="tv-fs-exit" data-a="wallfs" title="Exit full screen (F)" aria-label="Exit full screen">${icon('fullscreen')}</button></main>`;
+      <div class="tv-fs-controls">
+        <button class="tv-fs-btn" data-a="pgprev" title="Previous page" aria-label="Previous page">${icon('left')}</button>
+        <span class="tv-fs-page"></span>
+        <button class="tv-fs-btn" data-a="pgnext" title="Next page" aria-label="Next page">${icon('right')}</button>
+        <button class="tv-fs-btn" data-a="wallfs" title="Exit full screen (F)" aria-label="Exit full screen">${icon('fullscreen')}</button>
+      </div></main>`;
     this.live = this.root.querySelector('.liveview');
     this.bar = this.root.querySelector('.subbar');
     this.wall = this.root.querySelector('.wall');
     this.wall.addEventListener('focusin', (e) => this._tvFocusIn(e));
-    this.live.querySelector('.tv-fs-exit').addEventListener('click', () => this.toggleFullscreen(this.live));
+    this.live.querySelector('[data-a=wallfs]').addEventListener('click', () => this.toggleFullscreen(this.live));
+    this.live.querySelector('[data-a=pgprev]').addEventListener('click', () => this.goPage(this.page - 1));
+    this.live.querySelector('[data-a=pgnext]').addEventListener('click', () => this.goPage(this.page + 1));
     this._bindWallFsAutoHide();
     this.page = Math.min(this.page, this.pages() - 1);
     this.renderBar();
@@ -88,16 +95,16 @@ export class LiveView {
 
   // TV mode + full screen on the grid itself (not a single camera's own focus view, which already has
   // _bindFocusAutoHide): the subbar disappears entirely (CSS, gated to html.tv-mode .liveview:fullscreen)
-  // so the wall of cameras is the only thing on screen, and this is what's left to get back out — a single
-  // floating button, itself hidden until you move the mouse or touch the screen, same idle cycle as
-  // _bindFocusAutoHide. A no-op everywhere else: outside that exact fullscreen+TV-mode state the button
-  // stays display:none regardless of the .show class this adds.
+  // so the wall of cameras is the only thing on screen, and this floating cluster — page prev/next (when
+  // there's more than one page), a page indicator, and exit — is what's left to control it. Hidden until
+  // you move the mouse or touch the screen, same idle cycle as _bindFocusAutoHide. A no-op everywhere else:
+  // outside that exact fullscreen+TV-mode state the cluster stays display:none regardless of .show.
   _bindWallFsAutoHide() {
-    const btn = this.live.querySelector('.tv-fs-exit');
+    const el = this.live.querySelector('.tv-fs-controls');
     let hideTimer;
-    const hide = () => btn.classList.remove('show');
+    const hide = () => el.classList.remove('show');
     const show = () => {
-      btn.classList.add('show');
+      el.classList.add('show');
       clearTimeout(hideTimer);
       hideTimer = setTimeout(hide, 2600);
     };
@@ -105,6 +112,17 @@ export class LiveView {
     this.live.addEventListener('mouseenter', show);
     this.live.addEventListener('touchstart', show, { passive: true });
     show();
+  }
+
+  /** Keeps the floating fullscreen page controls in sync with the real pager — called from renderBar(),
+   * which already recomputes pages()/this.page on every layout, camera, or page change. */
+  _syncFsControls() {
+    const el = this.live?.querySelector('.tv-fs-controls');
+    if (!el) return;
+    const pages = this.pages(), multi = pages > 1;
+    el.querySelector('[data-a=pgprev]').hidden = !multi;
+    el.querySelector('[data-a=pgnext]').hidden = !multi;
+    el.querySelector('.tv-fs-page').textContent = multi ? `${this.page + 1}/${pages}` : '';
   }
 
   renderBar() {
@@ -148,6 +166,7 @@ export class LiveView {
     this.bar.querySelector('[data-a=next]')?.addEventListener('click', () => this.goPage(this.page + 1));
     this.bar.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => this.goPage(+b.dataset.p)));
     this.bar.querySelector('[data-a=wallfs]').addEventListener('click', () => this.toggleFullscreen(this.live));
+    this._syncFsControls();
   }
 
   // TV mode's own Auto/SD/HD choice in place of the synced Settings one (see main.js's tvQuality) — same
