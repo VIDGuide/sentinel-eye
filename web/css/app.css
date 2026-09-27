@@ -389,6 +389,10 @@ kbd { padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); bac
    the real picture, sized to fit in EITHER direction — a plain max-width/max-height (shrink-only) would
    under-scale a source-resolution "before" frame that's smaller than the viewer, same bug fixed there. */
 .enh-img { aspect-ratio: var(--ar, 1.7778); width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); display: block; }
+.enh-img-result { opacity: 1; }   /* set per-frame from the blend slider (JS) — no transition, so dragging tracks the pointer exactly */
+.enh-blend { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.enh-blend input[type=range] { width: 130px; }
+.enh-blend-val { font-variant-numeric: tabular-nums; width: 3.2em; }
 .enh-livefilter-canvas { aspect-ratio: var(--ar, 1.7778); width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); display: block; pointer-events: none; }
 .enh-stage.flashlight-on { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Ccircle cx='14' cy='14' r='10' fill='rgba(255,214,130,0.22)' stroke='%23ffd682' stroke-width='2'/%3E%3Ccircle cx='14' cy='14' r='2.2' fill='%23ffd682'/%3E%3C/svg%3E") 14 14, crosshair; }
 .enh-stage .hitzone { position: absolute; inset: 0; z-index: 3; touch-action: none; }
@@ -826,3 +830,32 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
   .pb-ctrl-center { max-width: 100%; overflow-x: auto; justify-content: flex-start; padding: 2px; -webkit-overflow-scrolling: touch; }
   .pb-ctrl-center > * { flex: none; }
 }
+
+/* ---------- TV mode (Settings > Display) ---------- */
+/* Couch-distance legibility and a clear, high-contrast keyboard/remote focus ring — there's no mouse
+   pointer on a TV, and no touch either, just a D-pad's arrow keys + Enter/Back, so :hover-revealed chrome
+   (tile-actions, small icon-only buttons) is either unreachable or not worth the clutter; the per-tile
+   controls collapse to "select the tile, press Enter, use the large view's own big buttons" instead.
+   Heavy blur/shadow effects are also toned down here — a real cost on a TV's much weaker GPU. */
+html.tv-mode { font-size: 19px; }
+html.tv-mode body { font-size: 16px; }   /* a modest bump everywhere else; the elements below get a larger, deliberate size on top of this */
+html.tv-mode .topbar { height: calc(72px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+html.tv-mode .nav a { font-size: 1.2rem; gap: 10px; padding: 10px 18px; }
+html.tv-mode .brand { font-size: 1.15rem; gap: 10px; }
+html.tv-mode .clock { font-size: 1.05rem; }
+html.tv-mode .subbar { min-height: 60px; gap: 10px; padding: 10px 14px; }
+html.tv-mode .subbar .btn, html.tv-mode .subbar .seg button, html.tv-mode .subbar .pill { font-size: 1.05rem; padding: 10px 16px; }
+html.tv-mode .tile-actions { display: none; }   /* declutter — open the tile (Enter) and use the large view's controls instead */
+html.tv-mode .tile .name { font-size: 1.15rem; }
+html.tv-mode .tile .hit:focus-visible { outline: 4px solid var(--accent); outline-offset: -4px; z-index: 6; }
+html.tv-mode .tile .hit { cursor: pointer; }
+html.tv-mode .focus-bar { min-height: 64px; padding: 10px 14px; }
+html.tv-mode .focus-bar h2 { font-size: 1.3rem; }
+html.tv-mode .focus-bar .btn { font-size: 1.05rem; padding: 10px 16px; }
+html.tv-mode .focus-bar .btn:focus-visible,
+html.tv-mode .nav a:focus-visible,
+html.tv-mode .subbar .btn:focus-visible,
+html.tv-mode .savebar .btn:focus-visible,
+html.tv-mode button:focus-visible,
+html.tv-mode a:focus-visible { outline: 4px solid var(--accent); outline-offset: 2px; }
+html.tv-mode .nav-arrow { width: 56px; height: 56px; }

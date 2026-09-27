@@ -76,7 +76,18 @@ export class Tile {
     // object, already threaded through from live.js) — was always hardcoded "off".
     this.enhParams = { ...(ENHANCE_PRESETS[opts.display?.enhance_default_preset] || ENHANCE_PRESETS.off) };
     if (opts.chrome) {
-      this.el.querySelector('.hit').addEventListener('click', () => opts.onFocus?.(this));
+      const hit = this.el.querySelector('.hit');
+      hit.addEventListener('click', () => opts.onFocus?.(this));
+      // TV mode: there's no pointer, so the picture itself has to be a real keyboard target — most smart-TV
+      // browsers move focus between focusable elements on the remote's arrow keys natively (same mechanism
+      // as Tab), so tabindex here is what makes a camera reachable at all; Enter/Space then "clicks" it,
+      // same as a native <button> would.
+      if (opts.tv) {
+        hit.tabIndex = 0;
+        hit.setAttribute('role', 'button');
+        hit.setAttribute('aria-label', `Open ${cam.name || 'camera ' + cam.channel} large`);
+        hit.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opts.onFocus?.(this); } });
+      }
       this.el.querySelector('[data-a=quality]').addEventListener('click', (e) => { e.stopPropagation(); this.setKind(this.kind === 'main' ? 'sub' : 'main'); });
       this.el.querySelector('[data-a=snap]').addEventListener('click', (e) => { e.stopPropagation(); this.snapshot(); });
       this.el.querySelector('[data-a=replay]').addEventListener('click', (e) => { e.stopPropagation(); opts.onReplay?.(this); });

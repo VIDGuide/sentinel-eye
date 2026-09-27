@@ -17,10 +17,14 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Sentinel Eye">
-<!-- black-translucent: the installed app draws its own content under the status bar (this app already
-     accounts for env(safe-area-inset-*) throughout — see the fullscreen/notch work in the mobile-responsive
-     pass) rather than leaving a plain black or white bar reserved above it. -->
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- "black": iOS reserves an opaque status-bar strip above our content instead of overlaying a translucent
+     one on top of it. "black-translucent" looks tempting since this app already handles env(safe-area-
+     inset-*) for true (Fullscreen API) fullscreen elsewhere, but in *standalone* display mode it makes iOS
+     itself draw a frosted/blurred system bar over our content for legibility — that's the "weirdly blurred"
+     strip reported on iPad after adding to the Home Screen. Opaque "black" avoids it entirely and blends in
+     since our topbar is already near-black; true fullscreen video views are unaffected (separate API/state,
+     still handled by the :fullscreen safe-area rules). -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 </head>
 <body>
 <div id="app"></div>

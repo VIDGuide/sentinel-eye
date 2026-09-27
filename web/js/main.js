@@ -26,9 +26,24 @@ matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   if (!(state.settings?.display.theme === 'dark' || state.settings?.display.theme === 'light')) applyTheme(null);
 });
 
+// TV mode: a big-text, remote-friendly UI mode for browsing on a smart TV's browser (Tizen etc). Kept as a
+// per-browser localStorage flag rather than part of the synced Settings — this server is watched from
+// several physically different screens at once (a laptop AND a TV in the same house, per the feature
+// request), and a TV-sized UI is a property of the screen you're looking at, not something that should
+// change what a laptop sees the moment someone flips it on for the TV in the other room.
+const TV_MODE_KEY = 'sentinel-eye-tv-mode';
+function getTvMode() { try { return localStorage.getItem(TV_MODE_KEY) === '1'; } catch { return false; } }
+function setTvMode(on) {
+  try { localStorage.setItem(TV_MODE_KEY, on ? '1' : '0'); } catch { /* private mode */ }
+  document.documentElement.classList.toggle('tv-mode', on);
+}
+setTvMode(getTvMode());   // apply before first paint of the shell below
+
 const ctx = {
   settings: () => state.settings,
   applyTheme,
+  tvMode: getTvMode,
+  setTvMode,
   go: (h) => { location.hash = h; },
   // For a view syncing its OWN url as its state changes (e.g. playback keeping the current position in the
   // hash) rather than navigating: replaces instead of pushing, so it doesn't fill browser history with

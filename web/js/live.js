@@ -20,6 +20,9 @@ export class LiveView {
     this.pendingFocusId = null;
     this.zoomMem = {};          // grid zoom per camera, kept while paging/re-laying out
     this.fitOverride = null;   // null = follow Settings > Display > Fit; 'contain'/'cover' = this-session-only override, never saved (see fitMode())
+    // Read once at construction (Settings tears down and rebuilds LiveView on any route change — see
+    // main.js route() — so a fresh read here already picks up a toggle flipped from within Settings).
+    this.tvMode = !!ctx.tvMode?.();
     this.onKey = (e) => this.key(e);
     document.addEventListener('keydown', this.onKey);
     this.onFs = () => this.syncFullscreen();
@@ -115,6 +118,11 @@ export class LiveView {
   }
 
   qualityFor(cell) {
+    // TV mode: always SD in the grid, regardless of the (shared, synced-everywhere) quality setting — a
+    // full wall of simultaneous HD decodes is exactly what was lagging on a Tizen browser (per the report
+    // this was built for); the large/focus view below is unaffected since it's a single stream, so HD
+    // there costs far less and is exactly where it matters most on a big screen.
+    if (this.tvMode) return 'sub';
     const q = this.d.quality;
     return q === 'main' ? 'main' : q === 'sub' ? 'sub' : cell.big ? 'main' : 'sub';
   }
@@ -134,7 +142,7 @@ export class LiveView {
       let el;
       if (cam) {
         const t = new Tile(cam, {
-          kind: this.qualityFor(cell), display: this.d, chrome: true,
+          kind: this.qualityFor(cell), display: this.d, chrome: true, tv: this.tvMode,
           zoomInit: this.zoomMem[cam.id],
           onZoom: (id, st) => { if (st.s > 1.001) this.zoomMem[id] = st; else delete this.zoomMem[id]; },
           onFocus: () => this.ctx.go(`#/live/${cam.id}`),
@@ -509,8 +517,11 @@ export class LiveView {
       return;
     }
     if (k === 'Escape') { if (this.edit) this.toggleEdit(false); }
-    else if (k === 'ArrowLeft') this.goPage(this.page - 1);
-    else if (k === 'ArrowRight') this.goPage(this.page + 1);
+    // Off in TV mode: arrow keys there are spatial-navigation focus moves between tiles (see tile.js's
+    // tabindex, added under the same flag), not a paging shortcut — the two would otherwise both fire on
+    // the same keypress. The always-focusable pager buttons (renderBar, when pages > 1) cover paging.
+    else if (k === 'ArrowLeft' && !this.tvMode) this.goPage(this.page - 1);
+    else if (k === 'ArrowRight' && !this.tvMode) this.goPage(this.page + 1);
     else if (k === 'e' || k === 'E') this.toggleEdit();
     else if (k === 'f' || k === 'F') this.toggleFullscreen(this.live);
     else if (/^[1-9]$/.test(k)) { const t = this.tiles[+k - 1]; if (t) this.ctx.go(`#/live/${t.cam.id}`); }
