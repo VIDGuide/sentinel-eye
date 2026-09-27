@@ -154,6 +154,11 @@ browser — playing the original H.265 directly is an opt-in setting for lower C
 - Python 3
 - A Hikvision DVR/NVR or camera reachable over RTSP on your network
 
+Only built and tested on macOS so far — that's the machine this was written for. The Python backend and
+`go2rtc` are both cross-platform in principle, so Linux/Windows support is realistic, but `run.sh`,
+Homebrew, and the go2rtc binary fetch are all Mac-specific today and nothing else has been verified. See
+[Contributing](#contributing) below if you'd like to help change that.
+
 ### Install
 
 ```sh
@@ -299,3 +304,24 @@ detailed specification and its build status live in `docs/SPEC.md` — including
 deliberately not built (a native-DVR-file export option, and a standalone offline player), and one open
 investigation into a rare timing edge case on footage recorded many hours before the most recent per-channel
 clock calibration.
+
+## Contributing
+
+This started as a single-operator tool built for one person's own Hikvision NVR on one Mac, so there's a lot
+of surface it's never had a reason to cover. Contributions are welcome, especially in the areas that setup
+above already admits are untested or missing:
+
+- **Other DVR/NVR/camera brands.** Everything here assumes Hikvision's RTSP path conventions and ISAPI, and
+  the encryption support (`tools/NOTES.md`) is specific to Hikvision's own scheme. A Dahua, Reolink,
+  ONVIF-generic, or other vendor's equivalent would be a real, separate effort — genuinely useful, and not
+  something this project currently attempts.
+- **Windows and Linux support.** The Python backend and `go2rtc` don't inherently need macOS, but `run.sh`,
+  the Homebrew-based install, and the go2rtc binary fetch all currently assume it, and nothing has been run
+  or tested on another OS.
+- **Features.** `docs/SPEC.md` documents what's built, what was deliberately left out, and why — a good
+  starting point for seeing what's already been considered and what's genuinely open.
+
+If you're picking up one of the bigger items (a new DVR brand, a new OS), consider opening an issue first to
+compare notes before sinking a lot of time in — this project's own conventions (no build step for the
+frontend, the settings/RTSP path assumptions baked into `app/hikrelay.py` and `app/go2rtc.py`) are worth
+knowing going in.
