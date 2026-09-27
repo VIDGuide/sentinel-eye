@@ -12,7 +12,13 @@ import { enhancePanelHTML, wireEnhancePanel, summarizeEnhParams } from './enhanc
 // same reasoning as the backend's: tile.js/player.js build the go2rtc stream name from `id` alone
 // ("chan0_sub"/"chan0_main"), never from `channel`.
 const CHAN0_ID = 'chan0';
-const CHAN0_CAM = { id: CHAN0_ID, channel: 0, name: 'Channel 0', enabled: true, aspect: 'auto' };
+// aspect: '16:9', not 'auto' — the recorder encodes this at 704x576 (D1/4CIF, confirmed directly), which
+// is non-square-pixel content meant for 16:9 display, same as a real camera's SD sub-stream. tile.js's
+// `_shape()` auto-detection only catches THAT case by its known 2:1-squeeze ratio (e.g. 960x480); 704x576
+// is ~1.22:1, nowhere near 2:1, so 'auto' was rendering it at its raw, unsquashed pixel ratio — squarer
+// than even 4:3, which is exactly the "weird aspect ratio" reported. Forcing it sidesteps the heuristic
+// entirely, the same escape hatch a real camera's own Aspect setting (Channels tab) already offers.
+const CHAN0_CAM = { id: CHAN0_ID, channel: 0, name: 'Channel 0', enabled: true, aspect: '16:9' };
 const isChan0 = (cam) => cam?.id === CHAN0_ID;
 
 export class LiveView {
