@@ -256,6 +256,31 @@ Stops the web server, go2rtc, and any decrypt-relay/ffmpeg processes it started.
 The frontend is plain JavaScript with no build step, so a UI change just needs a browser refresh; only a
 backend (Python) change needs `./stop.sh && ./run.sh`.
 
+### Running as a service (Linux)
+
+`run.sh` is a foreground process — fine for a quick look, but it stops when the shell does. To keep Sentinel
+Eye running (and start it at boot), two sample systemd units live in `tools/systemd/`:
+
+```sh
+# system-wide (runs as your user, survives reboot)
+sed -e "s|__DIR__|$PWD|g" -e "s|__USER__|$USER|g" tools/systemd/sentinel-eye.service \
+  | sudo tee /etc/systemd/system/sentinel-eye.service
+sudo systemctl daemon-reload && sudo systemctl enable --now sentinel-eye
+
+# or per-user, no root needed
+mkdir -p ~/.config/systemd/user
+sed -e "s|__DIR__|$PWD|g" tools/systemd/sentinel-eye.user.service \
+  > ~/.config/systemd/user/sentinel-eye.service
+systemctl --user daemon-reload && systemctl --user enable --now sentinel-eye
+```
+
+A per-user unit stops when your last session ends unless you enable lingering once
+(`sudo loginctl enable-linger "$USER"`).
+
+Both units keep the default loopback-only bind, restart on failure, and use `KillMode=control-group` so
+stopping the service also takes down the go2rtc and ffmpeg children it starts rather than orphaning them on
+their ports. Logs go to the journal (`journalctl -u sentinel-eye`).
+
 ## Installing as an app
 
 Sentinel Eye installs as a standalone app on iPhone, iPad, and Mac — no App Store, just the browser's own
