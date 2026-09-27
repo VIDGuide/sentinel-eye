@@ -208,14 +208,21 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .tile-actions button.txt { width: auto; padding: 0 8px; font-size: 11.5px; font-weight: 700; }
 /* Collapsed by default (see tile.js's own comment on why: a grid's worth of tiles each showing all 7
    action buttons at once, permanently on touch, reads as cluttered) — the toggle sits at the tile's fixed
-   top-right corner (last in flex order, so its own position never moves), the group expands to its left. */
-.tile-actions-group { display: flex; align-items: center; gap: 4px; max-width: 0; overflow: hidden; opacity: 0; min-width: 0; transition: max-width .2s ease, opacity .15s ease; }
-/* 100%, not a fixed pixel count — .tile-actions now spans the tile's real available width (left+right, not
-   just right — see its own comment), so this resolves against an actual number: whatever's left after the
-   toggle's own fixed width, on *this* tile, not a guess sized for the widest tile in the grid. A narrow
-   tile still can't show all 8 buttons at once, but they now clip within their own tile's own bounds instead
-   of spilling across the tile boundary into whatever's next to it. */
-.tile-actions.expanded .tile-actions-group { max-width: 100%; opacity: 1; }
+   top-right corner (last in flex order, so its own position never moves), the group expands to its left.
+   grid-template-columns 0fr->1fr (not width/max-width, both layout properties whose per-frame animation
+   forces a full reflow every tick) is the standard technique for animating a "how much room does this
+   take" reveal without that cost — the track-size interpolation is handled without the same thrash, and,
+   unlike max-width, doesn't need a guessed-or-100% target that can jump non-linearly if the real content is
+   narrower. .tile-actions-row (a plain flex row) is the actual button strip; this element only exists to
+   own the animated track. */
+.tile-actions-group { display: grid; grid-template-columns: 0fr; overflow: hidden; opacity: 0; transition: grid-template-columns .2s ease, opacity .15s ease; }
+.tile-actions-row { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 0; overflow: hidden; }
+/* 1fr, not a fixed pixel count — .tile-actions now spans the tile's real available width (left+right, not
+   just right — see its own comment), so the row's own max-content size (clamped by that available width)
+   is what the single 1fr track resolves against, not a guess sized for the widest tile in the grid. A
+   narrow tile still can't show all 8 buttons at once, but they now clip within their own tile's own bounds
+   instead of spilling across the tile boundary into whatever's next to it. */
+.tile-actions.expanded .tile-actions-group { grid-template-columns: 1fr; opacity: 1; }
 .tile-actions-toggle svg { transition: transform .2s ease; }
 .tile-actions.expanded .tile-actions-toggle svg { transform: rotate(180deg); }
 .tile-actions.expanded .tile-actions-toggle { background: var(--accent); color: var(--accent-ink); }

@@ -52,16 +52,18 @@ export class Tile {
       <button class="zoomtag" hidden title="Reset zoom" aria-label="Reset zoom">Reset</button>
       <div class="tile-actions">
         <div class="tile-actions-group">
-          <button data-a="zout" title="Zoom out" aria-label="Zoom out">${icon('minus')}</button>
-          <button data-a="zin" title="Zoom in (or scroll / pinch on the picture)" aria-label="Zoom in">${icon('plus')}</button>
-          <button class="txt" data-a="quality" title="Switch between SD and HD">HD</button>
-          <button data-a="snap" title="Save snapshot" aria-label="Save snapshot">${icon('camera')}</button>
-          <button data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>
-          <button data-a="bookmark" title="Bookmark this moment" aria-label="Bookmark this moment">${icon('flag')}</button>
-          <div class="menu-wrap enh-wrap">
-            <button data-a="enhance" title="Live enhancement (brightness/contrast/sharpen)" aria-label="Live enhancement" aria-haspopup="true">${icon('wand')}</button>
+          <div class="tile-actions-row">
+            <button data-a="zout" title="Zoom out" aria-label="Zoom out">${icon('minus')}</button>
+            <button data-a="zin" title="Zoom in (or scroll / pinch on the picture)" aria-label="Zoom in">${icon('plus')}</button>
+            <button class="txt" data-a="quality" title="Switch between SD and HD">HD</button>
+            <button data-a="snap" title="Save snapshot" aria-label="Save snapshot">${icon('camera')}</button>
+            <button data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>
+            <button data-a="bookmark" title="Bookmark this moment" aria-label="Bookmark this moment">${icon('flag')}</button>
+            <div class="menu-wrap enh-wrap">
+              <button data-a="enhance" title="Live enhancement (brightness/contrast/sharpen)" aria-label="Live enhancement" aria-haspopup="true">${icon('wand')}</button>
+            </div>
+            <button data-a="focus" title="Open large view" aria-label="Open large view">${icon('expand')}</button>
           </div>
-          <button data-a="focus" title="Open large view" aria-label="Open large view">${icon('expand')}</button>
         </div>
         <button class="tile-actions-toggle" data-a="moreactions" title="Camera controls" aria-label="Camera controls" aria-expanded="false" aria-haspopup="true">${icon('left')}</button>
       </div>
