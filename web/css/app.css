@@ -147,7 +147,9 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 /* The player is a box with the picture's real shape (--ar), sized to fit (or fill) the tile. The video is stretched
    into it, so SD (often a squeezed 2:1 frame) and HD show the same picture in the same place. */
 .stage cam-player { transform: translate(var(--zx, 0px), var(--zy, 0px)) scale(var(--zs, 1)); transform-origin: center; position: relative; display: block; aspect-ratio: var(--ar, 1.7778); width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); }
-.wall.fill .stage cam-player { width: max(100cqw, calc(100cqh * var(--ar, 1.7778))); }
+/* .focus is a separate overlay (not inside .wall — see live.js openFocus's own comment on why), so the
+   temporary fit/fill toggle needs its own selector here too, not just the grid's .wall.fill. */
+.wall.fill .stage cam-player, .focus.fill .stage cam-player { width: max(100cqw, calc(100cqh * var(--ar, 1.7778))); }
 .stage cam-player video { width: 100%; height: 100%; object-fit: fill; background: #000; display: block; pointer-events: none; }
 .stage cam-player.pending { visibility: hidden; }
 /* Scoped to .stage (live grid tiles / focus view) specifically — this used to be a bare .enh-canvas rule,
@@ -157,7 +159,7 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
    wrapper, compounding to the zoom factor squared — confirmed directly (223% zoom measured as ~497%
    effective) before finding this. */
 .stage .enh-canvas { transform: translate(var(--zx, 0px), var(--zy, 0px)) scale(var(--zs, 1)); transform-origin: center; position: relative; display: block; aspect-ratio: var(--ar, 1.7778); width: min(100cqw, calc(100cqh * var(--ar, 1.7778))); pointer-events: none; z-index: 2; }
-.wall.fill .stage .enh-canvas { width: max(100cqw, calc(100cqh * var(--ar, 1.7778))); }
+.wall.fill .stage .enh-canvas, .focus.fill .stage .enh-canvas { width: max(100cqw, calc(100cqh * var(--ar, 1.7778))); }
 .stage.zanim .enh-canvas { transition: transform .2s ease; }
 .veil { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; text-align: center; padding: 16px; color: #cbd5e1; background: rgba(5, 7, 10, .78); pointer-events: none; z-index: 2; }
 .veil .msg { max-width: 34ch; font-size: 13px; }

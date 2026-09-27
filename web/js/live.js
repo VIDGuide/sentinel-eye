@@ -19,6 +19,7 @@ export class LiveView {
     this.menuOpen = false;
     this.pendingFocusId = null;
     this.zoomMem = {};          // grid zoom per camera, kept while paging/re-laying out
+    this.fitOverride = null;   // null = follow Settings > Display > Fit; 'contain'/'cover' = this-session-only override, never saved (see fitMode())
     this.onKey = (e) => this.key(e);
     document.addEventListener('keydown', this.onKey);
     this.onFs = () => this.syncFullscreen();
@@ -34,6 +35,16 @@ export class LiveView {
 
   get s() { return this.ctx.settings(); }
   get d() { return this.s.display; }
+  fitMode() { return this.fitOverride || this.d.fit; }
+  toggleFit() {
+    this.fitOverride = this.fitMode() === 'cover' ? 'contain' : 'cover';
+    // Just the class — NOT renderWall(), which starts from disposeTiles() and would tear down and
+    // reconnect every single camera stream (found directly: every tile went back to "Connecting…") for
+    // what should be a purely cosmetic, instant change. Live view's tiles don't need touching at all here.
+    this.wall?.classList.toggle('fill', this.fitMode() === 'cover');
+    this.renderBar();
+    this.focus?.el.classList.toggle('fill', this.fitMode() === 'cover'); // focus is a separate overlay, not inside .wall — kept in sync here too
+  }
   cams() {
     const by = Object.fromEntries(this.s.channels.filter((c) => c.enabled).map((c) => [c.id, c]));
     return this.d.order.map((id) => by[id]).filter(Boolean);
@@ -79,6 +90,10 @@ export class LiveView {
       <div class="seg" role="group" aria-label="Video quality">
         ${seg('auto', 'Auto', 'HD for large tiles and the large view, SD for small tiles')}${seg('sub', 'SD', 'Always use the lighter sub-stream')}${seg('main', 'HD', 'Always use the full quality main stream')}
       </div>
+      <button class="btn" data-a="fit" aria-pressed="${this.fitMode() === 'cover'}"
+        title="${this.fitMode() === 'cover' ? 'Filling tiles (cropped to fill, nothing letterboxed) — tap to letterbox instead. This session only, not saved.' : 'Letterboxed to fit — tap to fill tiles instead (crops the picture). This session only, not saved.'}">
+        ${icon('crop')} ${this.fitMode() === 'cover' ? 'Fill' : 'Fit'}
+      </button>
       <button class="btn" data-a="edit" aria-pressed="${this.edit}" title="Drag tiles to change their order (E)">${icon('move')} Arrange</button>
       ${d.rotate_seconds > 0 && pages > 1 ? `<button class="btn" data-a="rotate" aria-pressed="${this.rotating}" title="Auto-rotate pages every ${d.rotate_seconds}s">${icon(this.rotating ? 'pause' : 'play')} Rotate</button>` : ''}
       <span class="spacer"></span>
@@ -90,6 +105,7 @@ export class LiveView {
     this.bar.querySelector('[data-a=layout]').addEventListener('click', (e) => { e.stopPropagation(); this.menuOpen = !this.menuOpen; this.renderBar(); });
     this.bar.querySelectorAll('[data-l]').forEach((b) => b.addEventListener('click', () => this.setDisplay({ layout: b.dataset.l }, true)));
     this.bar.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => this.setDisplay({ quality: b.dataset.q }, true)));
+    this.bar.querySelector('[data-a=fit]').addEventListener('click', () => this.toggleFit());
     this.bar.querySelector('[data-a=edit]').addEventListener('click', () => this.toggleEdit());
     this.bar.querySelector('[data-a=rotate]')?.addEventListener('click', () => { this.rotating = !this.rotating; this.rotSince = Date.now(); this.renderBar(); });
     this.bar.querySelector('[data-a=prev]')?.addEventListener('click', () => this.goPage(this.page - 1));
@@ -108,7 +124,7 @@ export class LiveView {
     this.disposeTiles();
     const layout = LAYOUTS[this.d.layout], slots = layout.cells.length, cams = this.cams();
     const w = this.wall;
-    w.className = 'wall' + (this.edit ? ' editing' : '') + (this.d.fit === 'cover' ? ' fill' : '');
+    w.className = 'wall' + (this.edit ? ' editing' : '') + (this.fitMode() === 'cover' ? ' fill' : '');
     w.style.gridTemplateColumns = `repeat(${layout.cols}, minmax(0, 1fr))`;
     w.style.gridTemplateRows = `repeat(${layout.rows}, minmax(0, 1fr))`;
     w.style.setProperty('--fit', this.d.fit);
@@ -251,7 +267,7 @@ export class LiveView {
     }
 
     const f = document.createElement('div');
-    f.className = 'focus';
+    f.className = 'focus' + (this.fitMode() === 'cover' ? ' fill' : '');
     f.innerHTML = `<div class="focus-bar">
         <button class="btn" data-a="close">${icon('left')} Back</button>
         <h2>${esc(cam.name || 'Camera ' + cam.channel)}</h2><span class="tag fx" ${summarizeEnhParams(tile.enhParams).active ? '' : 'hidden'} title="Live filters active">${icon('wand')}</span><span class="pill stat"></span><span class="spacer"></span>
@@ -262,6 +278,9 @@ export class LiveView {
         <button class="btn icon" data-a="replay" title="Instant replay (last 10s)" aria-label="Instant replay">${icon('rewind')}</button>
         <button class="btn icon" data-a="bookmark" title="Bookmark this moment" aria-label="Bookmark this moment">${icon('flag')}</button>
         <div class="menu-wrap enh-wrap"><button class="btn icon" data-a="enhance" title="Live enhancement" aria-label="Live enhancement" aria-haspopup="true">${icon('wand')}</button></div>
+        <button class="btn icon" data-a="fit" aria-pressed="${this.fitMode() === 'cover'}"
+          title="${this.fitMode() === 'cover' ? 'Filling (cropped) — tap to letterbox instead. This session only.' : 'Letterboxed to fit — tap to fill instead (crops). This session only.'}"
+          aria-label="Toggle fit or fill">${icon('crop')}</button>
         <button class="btn icon" data-a="fs" title="Full screen (F)" aria-label="Full screen">${icon('fullscreen')}</button>
         <button class="btn icon ghost" data-a="x" title="Close (Esc)" aria-label="Close">${icon('close')}</button>
       </div><div class="stage-host" style="position:relative;flex:1;min-height:0"></div>
@@ -280,6 +299,13 @@ export class LiveView {
     f.querySelector('[data-a=replay]').addEventListener('click', () => this.openReplay(cam));
     f.querySelector('[data-a=bookmark]').addEventListener('click', () => this.bookmarkNow(cam));
     f.querySelector('[data-a=fs]').addEventListener('click', () => this.toggleFullscreen(f));
+    f.querySelector('[data-a=fit]').addEventListener('click', () => {
+      this.toggleFit();
+      const btn = f.querySelector('[data-a=fit]');
+      const on = this.fitMode() === 'cover';
+      btn.setAttribute('aria-pressed', String(on));
+      btn.title = on ? 'Filling (cropped) — tap to letterbox instead. This session only.' : 'Letterboxed to fit — tap to fill instead (crops). This session only.';
+    });
     f.querySelector('[data-a=enhance]').addEventListener('click', () => this._toggleFocusEnhanceMenu(tile));
     f.querySelector('[data-a=zin]').addEventListener('click', () => tile.zoom.zoomBy(1.6));
     f.querySelector('[data-a=zout]').addEventListener('click', () => tile.zoom.zoomBy(1 / 1.6));

@@ -38,8 +38,14 @@ export class PlaybackView {
     this._roiSelectMode = false;   // armed via the wand panel's "Select region" button — next drag on any pane sets *that* pane's ROI
     this._flashlightMode = false;  // armed via "Digital flashlight" — cursor over any pane locally lifts shadows around it there
     this._alignSeq = 0;            // bumped on every seek/selection change so a slow, superseded pane's landing can't retroactively trigger alignment
+    this.fitOverride = null;       // null = follow Settings > Display > Fit; 'contain'/'cover' = this-session-only override, never saved (see fitMode())
     this.onKey = (e) => this._key(e);
     document.addEventListener('keydown', this.onKey);
+    // Rotating a phone/iPad between portrait and landscape crosses the stacked/grid breakpoint above —
+    // re-run the same layout decision live rather than leaving panes arranged for the orientation the view
+    // happened to open in.
+    this.onResize = () => this._layoutPanes();
+    window.addEventListener('resize', this.onResize);
     this._init(channelId);
   }
 
@@ -57,6 +63,19 @@ export class PlaybackView {
     return this.ctx.settings().display.order.map((id) => by[id]).filter(Boolean);
   }
   get primary() { return this.panes[0]?.cam; }
+  fitMode() { return this.fitOverride || this.ctx.settings().display.fit; }
+  toggleFit() {
+    this.fitOverride = this.fitMode() === 'cover' ? 'contain' : 'cover';
+    this._layoutPanes();
+    this._syncFitButton();
+  }
+  _syncFitButton() {
+    const btn = this.root.querySelector('[data-a=fit]');
+    if (!btn) return;
+    const on = this.fitMode() === 'cover';
+    btn.setAttribute('aria-pressed', String(on));
+    btn.title = on ? 'Filling (cropped) — tap to letterbox instead. This session only, not saved.' : 'Letterboxed to fit — tap to fill instead (crops). This session only, not saved.';
+  }
 
   build(channelId) {
     const cams = this.cams();
@@ -82,6 +101,8 @@ export class PlaybackView {
             <span class="spacer"></span>
             <span class="pill pb-pool" title="The recorder's shared playback-session budget"></span>
             <button class="btn icon pb-panel-toggle" data-a="togglecal" title="Jump to date &amp; time" aria-label="Jump to date and time" aria-haspopup="true">${icon('calendar')}</button>
+            <button class="btn icon" data-a="fit" aria-pressed="${this.fitMode() === 'cover'}" aria-label="Toggle fit or fill"
+              title="${this.fitMode() === 'cover' ? 'Filling (cropped) — tap to letterbox instead. This session only, not saved.' : 'Letterboxed to fit — tap to fill instead (crops). This session only, not saved.'}">${icon('crop')}</button>
             <button class="btn icon" data-a="pbfs" title="Full screen (F)" aria-label="Full screen">${icon('fullscreen')}</button>
           </div>
           <div class="pb-stage">
@@ -176,6 +197,7 @@ export class PlaybackView {
       this.root.querySelector(`[data-a=fwd${s}]`).addEventListener('click', () => this.seekTo(this.currentEpoch + s));
     }
     this.root.querySelector('[data-a=pbfs]').addEventListener('click', () => this.toggleFullscreen());
+    this.root.querySelector('[data-a=fit]').addEventListener('click', () => this.toggleFit());
     this.root.querySelector('[data-a=togglecams]').addEventListener('click', () => this._toggleMobilePanel('.pb-side-left'));
     this.root.querySelector('[data-a=togglecal]').addEventListener('click', () => this._toggleMobilePanel('.pb-side-right'));
     this.root.querySelector('.pb-panel-scrim').addEventListener('click', () => this._closeMobilePanels());
@@ -540,12 +562,27 @@ export class PlaybackView {
   }
 
   _layoutPanes() {
+    if (!this.panesEl) return; // resize fired before build() set it up, or after destroy() tore it down
     this.panesEl.innerHTML = '';
     const n = this.panes.length;
-    const fill = this.ctx.settings().display.fit === 'cover'; // same setting live view uses (Settings > Display > Picture & behaviour)
+    const fill = this.fitMode() === 'cover'; // same setting live view uses (Settings > Display > Picture & behaviour), overridable for this session only via the topline's Fit/Fill toggle
     this.panesEl.className = 'pb-panes' + (n > 1 ? ' multi' : '') + (fill ? ' fill' : '');
-    this.panesEl.style.gridTemplateColumns = n <= 1 ? '1fr' : n === 2 ? 'repeat(2, 1fr)' : n === 3 ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)';
-    this.panesEl.style.gridTemplateRows = n <= 2 ? '1fr' : 'repeat(2, 1fr)';
+    // A 2-column grid halves each pane's *width* first — fine on a wide screen, but for 16:9-ish CCTV
+    // footage on a narrow-and-tall viewport (a phone, or an iPad in portrait) that's the wrong dimension to
+    // give up: two side-by-side quarter-tiles letterbox hard, while full-width stacked panes keep the whole
+    // available width for every camera and only trade away height, which these shapes have comparatively
+    // more of. Landscape phones are deliberately excluded (checked orientation, not just width) — there
+    // width is the abundant dimension and a short landscape strip is the wrong place to stack 3-4 panes
+    // full-height-divided instead of side by side.
+    const stacked = n > 1 && window.matchMedia('(max-width: 900px) and (orientation: portrait)').matches;
+    this.panesEl.classList.toggle('stacked', stacked);
+    if (stacked) {
+      this.panesEl.style.gridTemplateColumns = '1fr';
+      this.panesEl.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+    } else {
+      this.panesEl.style.gridTemplateColumns = n <= 1 ? '1fr' : n === 2 ? 'repeat(2, 1fr)' : n === 3 ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)';
+      this.panesEl.style.gridTemplateRows = n <= 2 ? '1fr' : 'repeat(2, 1fr)';
+    }
     for (const p of this.panes) this.panesEl.append(p.el);
   }
 
@@ -998,6 +1035,7 @@ export class PlaybackView {
 
   destroy() {
     document.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('resize', this.onResize);
     if (this._onFsChange) document.removeEventListener('fullscreenchange', this._onFsChange);
     clearInterval(this._poolTimer);
     clearTimeout(this._hideTimer);
